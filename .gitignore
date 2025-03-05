@@ -7,6 +7,10 @@ venv/
 env/
 .env/
 
+# Node.js dependencies
+node_modules/
+package-lock.json
+
 # Python cache files
 __pycache__/
 *.py[cod]
@@ -36,5 +40,4 @@ Thumbs.db
 # Logs
 *.log
 
-# Local data files
 data/
