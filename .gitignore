@@ -1,5 +1,6 @@
 # API keys and configuration
 config.py
+kleinanzeigenScraper.infraviored.lol.conf
 
 # Python virtual environment
 kleinanzeigenScraper/

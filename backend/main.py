@@ -23,7 +23,9 @@ def main():
     args = parser.parse_args()
     
     # Define paths for data
-    data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
+    backend_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(backend_dir)  # Go up one level to the project root
+    data_dir = os.path.join(project_root, "data")  # Data is at the project root
     output_file = os.path.join(data_dir, "listings.json")
     search_urls_file = os.path.join(data_dir, "search_urls.json")
     

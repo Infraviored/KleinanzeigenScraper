@@ -1,0 +1,18 @@
+[Unit]
+Description=KleinanzeigenScraper Python API Server
+After=network.target
+
+[Service]
+Type=simple
+User=flo
+WorkingDirectory=/home/flo/repos/KleinanzeigenScraper
+Environment="PYTHONPATH=/home/flo/repos/KleinanzeigenScraper"
+ExecStart=/home/flo/repos/KleinanzeigenScraper/kleinanzeigenScraper/bin/python /home/flo/repos/KleinanzeigenScraper/backend/api_server.py
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=kleinanzeigen-scraper-api
+
+[Install]
+WantedBy=multi-user.target

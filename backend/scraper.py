@@ -254,7 +254,9 @@ def scrape_listings(urls, output_file, max_listings=None, process_immediately=Fa
     from config import PAGES_TO_SCRAPE, DELAY_BETWEEN_PAGES
     
     # Define paths for persistent data
-    data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
+    backend_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(backend_dir)  # Go up one level to the project root
+    data_dir = os.path.join(project_root, "data")  # Data is at the project root
     cookies_path = os.path.join(data_dir, "cookies.pkl")
     user_data_dir = os.path.join(data_dir, "chrome_profile")
     
