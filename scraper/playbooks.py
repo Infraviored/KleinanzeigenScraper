@@ -114,7 +114,7 @@ def resolve_scoring_fields(playbook, intent_fields):
 register(
     {
         "key": "electronics/laptops",
-        "version": 1,
+        "version": 2,
         "label": "Laptops & Notebooks",
         "category_codes": ("c278",),
         "dossier_relevant": False,
@@ -195,10 +195,16 @@ register(
                 "description": "Any statement about battery health, cycle count or runtime. Empty if not mentioned.",
             },
             {
-                "id": "hasDefect",
+                "id": "hasFunctionalDefect",
                 "type": "boolean",
-                "label": "Defekt genannt",
-                "description": "yes if any defect, damage or fault is mentioned, including cosmetic damage.",
+                "label": "Funktionsdefekt",
+                "description": "yes only if something does not work as intended: failing battery, dead pixels, broken port, overheating, no boot. Purely cosmetic wear is NOT a functional defect.",
+            },
+            {
+                "id": "hasCosmeticDamage",
+                "type": "boolean",
+                "label": "Gebrauchsspuren",
+                "description": "yes if scratches, dents, worn keys or discolouration are mentioned. Appearance only, nothing that affects function.",
             },
             {
                 "id": "hasCharger",

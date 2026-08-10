@@ -20,7 +20,7 @@ FACTS = {
         "storageGb": {"value": 256},
         "cpuTier": {"value": 4},
         "conditionGrade": {"value": "gut"},
-        "hasDefect": {"value": "no"},
+        "hasFunctionalDefect": {"value": "no"},
         "accountLocked": {"value": "no"},
     },
     "dimensions": {},
@@ -127,14 +127,22 @@ def test_one_sheet_serves_two_different_intents(conn, laptops):
     demanding = {
         "fields": [
             {"id": "ramGb", "importance": "high", "buyer_wants": {"min": 32}},
-            {"id": "hasDefect", "importance": "high", "buyer_wants": {"match": False}},
+            {
+                "id": "hasFunctionalDefect",
+                "importance": "high",
+                "buyer_wants": {"match": False},
+            },
         ],
         "dimensions_enabled": False,
     }
     modest = {
         "fields": [
             {"id": "ramGb", "importance": "high", "buyer_wants": {"min": 8}},
-            {"id": "hasDefect", "importance": "high", "buyer_wants": {"match": False}},
+            {
+                "id": "hasFunctionalDefect",
+                "importance": "high",
+                "buyer_wants": {"match": False},
+            },
         ],
         "dimensions_enabled": False,
     }
