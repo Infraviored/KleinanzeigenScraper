@@ -1,4 +1,5 @@
 import os
+import sys
 import json
 import sqlite3
 import logging
@@ -239,7 +240,10 @@ def main():
             worker_path = os.path.join(
                 os.path.dirname(os.path.abspath(__file__)), "agent_worker.py"
             )
-            cmd = ["python3", worker_path, "process"]
+            # sys.executable, not a bare "python3": the worker's dependencies
+            # (openai, ...) live in this project's venv, and a bare name resolves
+            # against PATH, which lands on the system interpreter instead.
+            cmd = [sys.executable, worker_path, "process"]
             if args.listing_id:
                 cmd.append(args.listing_id)
             if args.campaign_id is not None:
