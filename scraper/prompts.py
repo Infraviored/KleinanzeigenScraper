@@ -43,11 +43,21 @@ def _build_criteria_value_spec(fields_list):
         if ftype == "boolean":
             fmt = '"yes", "no" or "unknown"'
         elif ftype == "number":
+            unit = field.get("unit")
             fmt = "a bare JSON number (no units, no ranges, no text) or null"
+            if unit:
+                fmt += f", expressed in {unit}"
         elif ftype == "tier":
             fmt = "an integer from 1 to 5 or null"
+            scale = field.get("tier_scale")
+            if scale:
+                fmt += f" where {scale}"
         elif ftype == "enum":
-            allowed = wants.get("preferred", []) + wants.get("excluded", [])
+            # A playbook declares the allowed values outright; an intent-shaped
+            # field only implies them through what the buyer wants.
+            allowed = field.get("options") or (
+                wants.get("preferred", []) + wants.get("excluded", [])
+            )
             allowed_str = ", ".join(f'"{option}"' for option in allowed)
             fmt = (
                 f"exactly one of [{allowed_str}] or null"
@@ -57,7 +67,11 @@ def _build_criteria_value_spec(fields_list):
         else:
             fmt = "a short string (max 120 chars) or null"
 
-        lines.append(f'  - "{fid}" ({label}) -> {fmt}')
+        line = f'  - "{fid}" ({label}) -> {fmt}'
+        description = field.get("description")
+        if description:
+            line += f"\n      {description}"
+        lines.append(line)
 
     return "\n".join(lines)
 
