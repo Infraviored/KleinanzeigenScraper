@@ -45,6 +45,9 @@ Kosten wachsen mit dem Markt, nicht mit der Nutzerzahl.
 
 ## Schichten
 
+Produktiv verdrahtet in `main.py --mode process` über `scraper/pipeline.py`.
+Kategorien ohne Playbook fallen unverändert auf den Legacy-Worker zurück.
+
 ```
 Adapter → Identitäts-Auflösung → Faktenblatt-Extraktion → [Faktenblatt]
                     ↑                      ↑                    ↓
@@ -90,9 +93,9 @@ Logistik, Preisreferenz.
 | P0 | Fundament: kanonisches Listing, Taxonomie, Adapter-Schnittstelle | offen |
 | P1 | **Extraktion von Kaufabsicht entkoppeln** | **erledigt** |
 | P2 | Kategorie-Playbooks für alle Kernkategorien | 4 von 8 |
-| P3 | Identitäts-Auflösung (Kategorie + Modell → Dossier-Schlüssel) | offen |
+| P3 | Identitäts-Auflösung (Kategorie + Modell → Dossier-Schlüssel) | **erledigt** |
 | P4 | Recherche-Agent mit Retrieval | Speicher steht, Agent offen |
-| P5 | Kaufabsicht im Gespräch erheben, harte Constraints | offen |
+| P5 | Kaufabsicht im Gespräch erheben, harte Constraints | Constraints erledigt, Gespräch offen |
 | P6 | Preis- und Marktmodell aus Vergleichsanzeigen | offen |
 | P7 | Vision (Rost, Gebrauchsspuren, Maße, Bild-Text-Abgleich) | offen |
 | P8 | Alarm in Minuten, Verhandlungsentwurf aus Dossier-Lücken | offen |
@@ -106,9 +109,10 @@ Offen: Wohnwagen, E-Bikes, Konsolen, Kameras. Vorlage:
 `test_every_playbook_field_is_well_formed`.
 
 ### P3 — Identitäts-Auflösung
-Muss konservativ sein: lieber „nicht aufgelöst" als falsch aufgelöst, weil ein
-falscher Schlüssel das falsche Dossier zieht und dann tausende Anzeigen
-gleichsinnig falsch bewertet.
+`scraper/identity.py`. Läuft nach der Extraktion, nicht auf dem Titel — Marke,
+Modell und Motorkennung sind dann bereits getrennte Felder, es bleibt reine
+Normalisierung. Verweigert die Auflösung bei fehlendem Pflichtteil: lieber
+„nicht aufgelöst" als falsch aufgelöst.
 
 ### P4 — Recherche-Agent
 **Blocker:** ein Modell ohne Retrieval erfindet Quellen. Gemessen an
@@ -119,9 +123,14 @@ Suchwerkzeug — ohne das liefert er nichts Verwertbares.
 
 Weiter offen: URL-Erreichbarkeit tatsächlich prüfen, nicht nur die Form.
 
-### P5 — harte Constraints
-Der Scorer kennt heute nur Gewichtungen. Toms A2-Führerschein und Lenas 180-cm-
-Nische sind K.-o.-Kriterien, keine Abzüge. Eigener Feldtyp nötig.
+### P5 — harte Constraints (erledigt) und Gesprächs-Intent (offen)
+Intent-Felder mit `"hard": true` setzen den Score auf 0. Verletzung und
+fehlender Wert werden getrennt: eine angegebene Überschreitung schließt aus,
+Schweigen des Verkäufers landet in `unverified_constraints` und ist eine
+Rückfrage wert.
+
+Offen: die Kaufabsicht im Gespräch erheben. Bis dahin erzeugt
+`scripts/make_intent.py` ein editierbares Startprofil aus einem Playbook.
 
 ---
 
