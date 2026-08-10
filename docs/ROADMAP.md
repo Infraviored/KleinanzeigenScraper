@@ -89,7 +89,7 @@ Logistik, Preisreferenz.
 |---|---|---|
 | P0 | Fundament: kanonisches Listing, Taxonomie, Adapter-Schnittstelle | offen |
 | P1 | **Extraktion von Kaufabsicht entkoppeln** | **erledigt** |
-| P2 | Kategorie-Playbooks für alle Kernkategorien | 2 von 8 |
+| P2 | Kategorie-Playbooks für alle Kernkategorien | 4 von 8 |
 | P3 | Identitäts-Auflösung (Kategorie + Modell → Dossier-Schlüssel) | offen |
 | P4 | Recherche-Agent mit Retrieval | Speicher steht, Agent offen |
 | P5 | Kaufabsicht im Gespräch erheben, harte Constraints | offen |
@@ -99,7 +99,8 @@ Logistik, Preisreferenz.
 | P9 | Evaluationsrahmen: Goldstandard, Regression, Kostenbudget | offen |
 
 ### P2 — offene Playbooks
-Motorräder, Wohnwagen, E-Bikes, Handys, Konsolen, Kameras. Vorlage:
+Fertig: Laptops (v2), Autos, Motorräder, Handys.
+Offen: Wohnwagen, E-Bikes, Konsolen, Kameras. Vorlage:
 `playbooks.py`. Jedes Feld braucht `label` und `description`; `enum` braucht
 `options`, `tier` braucht `tier_scale` — erzwungen durch
 `test_every_playbook_field_is_well_formed`.
