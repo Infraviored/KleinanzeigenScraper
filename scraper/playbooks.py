@@ -356,3 +356,191 @@ register(
         ],
     }
 )
+
+
+# --------------------------------------------------------------------------
+# Motorcycles. Like cars, with three differences that change the field set:
+# storage and maintenance matter more than odometer reading, prices swing with
+# the season, and licence class is a legal hard limit rather than a preference.
+# --------------------------------------------------------------------------
+register(
+    {
+        "key": "vehicles/motorcycles",
+        "version": 1,
+        "label": "Motorräder & Motorroller",
+        "category_codes": ("c305",),
+        "dossier_relevant": True,
+        "vision_weight": "high",
+        "geo_constraint": "soft",
+        "fields": [
+            {
+                "id": "make",
+                "type": "text",
+                "label": "Marke",
+                "description": "Manufacturer, e.g. Honda, Yamaha, KTM.",
+            },
+            {
+                "id": "model",
+                "type": "text",
+                "label": "Modell",
+                "description": "Model designation as stated, e.g. 'MT-07', 'CB500F'.",
+            },
+            {
+                "id": "firstRegistrationYear",
+                "type": "number",
+                "label": "Erstzulassung",
+                "unit": "Jahr",
+                "description": "Year of first registration as a four-digit year.",
+            },
+            {
+                "id": "mileageKm",
+                "type": "number",
+                "label": "Laufleistung",
+                "unit": "km",
+                "description": "Odometer reading in kilometres.",
+            },
+            {
+                "id": "powerKw",
+                "type": "number",
+                "label": "Leistung",
+                "unit": "kW",
+                "description": "Power in kW. Convert PS to kW (1 PS = 0.7355 kW). Decisive for licence class: A2 is capped at 35 kW.",
+            },
+            {
+                "id": "a2Compatible",
+                "type": "boolean",
+                "label": "A2-tauglich",
+                "description": "yes if the bike is at or below 35 kW, or is stated to be restrictable ('drosselbar') to 35 kW. This is a legal limit, not a preference.",
+            },
+            {
+                "id": "displacementCcm",
+                "type": "number",
+                "label": "Hubraum",
+                "unit": "ccm",
+                "description": "Engine displacement in cubic centimetres.",
+            },
+            {
+                "id": "lastServiceDocumented",
+                "type": "boolean",
+                "label": "Inspektion dokumentiert",
+                "description": "yes only if a documented service or invoice is claimed.",
+            },
+            {
+                "id": "storageCondition",
+                "type": "enum",
+                "label": "Unterstellung",
+                "options": ["garage", "carport", "draussen", "unbekannt"],
+                "description": "Where the bike was kept. Outdoor storage predicts corrosion more reliably than mileage does.",
+            },
+            {
+                "id": "crashDamage",
+                "type": "boolean",
+                "label": "Sturzschaden",
+                "description": "yes if a fall, crash or related damage is mentioned, including 'Sturzschaden nur optisch'.",
+            },
+            {
+                "id": "tyreCondition",
+                "type": "text",
+                "label": "Reifenzustand",
+                "description": "Any statement about tyre age, profile depth or recent replacement.",
+            },
+            {
+                "id": "conditionGrade",
+                "type": "enum",
+                "label": "Zustand",
+                "options": ["sehr gut", "gut", "gebraucht", "bastler"],
+                "description": "Overall condition. Use 'bastler' for project bikes or non-runners.",
+            },
+        ],
+    }
+)
+
+
+# --------------------------------------------------------------------------
+# Smartphones. The most fungible category in the market: identity is exact,
+# specs follow from the model name, and the real risks are fraud-shaped rather
+# than mechanical.
+# --------------------------------------------------------------------------
+register(
+    {
+        "key": "electronics/phones",
+        "version": 1,
+        "label": "Handy & Telefon",
+        "category_codes": ("c173",),
+        "dossier_relevant": False,
+        "vision_weight": "medium",
+        "geo_constraint": "none",
+        "fields": [
+            {
+                "id": "brand",
+                "type": "text",
+                "label": "Hersteller",
+                "description": "Manufacturer, e.g. Apple, Samsung.",
+            },
+            {
+                "id": "modelName",
+                "type": "text",
+                "label": "Modell",
+                "description": "Full model designation, e.g. 'iPhone 13 Pro', 'Galaxy S22 Ultra'.",
+            },
+            {
+                "id": "storageGb",
+                "type": "number",
+                "label": "Speicher",
+                "unit": "GB",
+                "description": "Internal storage in GB. Convert TB to GB.",
+            },
+            {
+                "id": "batteryHealthPercent",
+                "type": "number",
+                "label": "Akkukapazität",
+                "unit": "%",
+                "description": "Battery health percentage if stated, e.g. from iOS battery health. Null if not mentioned.",
+            },
+            {
+                "id": "displayCondition",
+                "type": "enum",
+                "label": "Displayzustand",
+                "options": ["makellos", "kratzer", "riss", "defekt"],
+                "description": "Screen condition. Use 'riss' for any crack, however small.",
+            },
+            {
+                "id": "accountLocked",
+                "type": "boolean",
+                "label": "Konto-Sperre",
+                "description": "yes if locked to an account (iCloud, Google FRP) or if activation lock is implied. Primary fraud signal in this category.",
+            },
+            {
+                "id": "simLocked",
+                "type": "boolean",
+                "label": "SIM-Lock",
+                "description": "yes if the device is bound to a carrier ('Netlock', 'SIM-Lock', 'nur mit Vertrag').",
+            },
+            {
+                "id": "hasOriginalPackaging",
+                "type": "boolean",
+                "label": "OVP vorhanden",
+                "description": "yes if original box and accessories are included.",
+            },
+            {
+                "id": "hasInvoice",
+                "type": "boolean",
+                "label": "Rechnung vorhanden",
+                "description": "yes if a purchase invoice is offered. Proof of legitimate ownership and a warranty basis.",
+            },
+            {
+                "id": "repairHistory",
+                "type": "text",
+                "label": "Reparaturen",
+                "description": "Any mention of repairs, replaced parts or third-party service. Empty if none.",
+            },
+            {
+                "id": "conditionGrade",
+                "type": "enum",
+                "label": "Zustand",
+                "options": ["neuwertig", "gut", "gebraucht", "defekt"],
+                "description": "Overall condition. Use 'defekt' whenever any functional fault is admitted.",
+            },
+        ],
+    }
+)
