@@ -33,6 +33,31 @@ export interface SampleListing {
   details: string
 }
 
+export type FieldType = 'boolean' | 'number' | 'enum' | 'tier' | 'text';
+export type MissingBehavior = 'critical_gap' | 'penalize' | 'cap_upside' | 'neutral';
+export type Polarity = 'positive' | 'negative' | 'neutral';
+
+export interface FieldDefinition {
+  id: string;
+  label: string;
+  description?: string;
+  type: FieldType;
+  unit?: string;
+  values?: string[];
+  importance: 'high' | 'medium' | 'low';
+  buyer_wants?: Record<string, unknown>;
+  missing_behavior?: MissingBehavior;
+  polarity?: Polarity;
+  extraction_hint?: string;
+}
+
+export interface ExtractedFieldValue {
+  value: string | number | boolean | null;
+  evidence_quote?: string;
+  reasoning?: string;
+  confidence?: 'high' | 'medium' | 'low';
+}
+
 export interface Listing {
   id: string
   title: string
@@ -65,6 +90,11 @@ export interface Listing {
     status: 'satisfied' | 'neutral' | 'violated' | 'Needs Re-Evaluation'
     value?: unknown
   }[]
+  field_evaluations?: {
+    field: FieldDefinition
+    extracted: ExtractedFieldValue
+    status: 'satisfied' | 'partial' | 'violated' | 'missing' | 'missing_critical'
+  }[]
   highlights?: {
     label: string
     type: 'maintenance' | 'warning' | 'feature'
@@ -95,6 +125,9 @@ export interface ScraperProgressCardProps {
 
 export interface ParsedKnowledgeConfig {
   product_domain?: string;
+  dimensions_enabled?: boolean;
+  dimensions_weight?: number;
+  fields?: FieldDefinition[];
   extraction_criteria?: {
     id: string;
     description?: string;
@@ -108,3 +141,4 @@ export interface ParsedKnowledgeConfig {
     }>;
   };
 }
+

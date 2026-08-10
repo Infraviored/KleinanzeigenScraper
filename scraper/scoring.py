@@ -318,18 +318,194 @@ def calculate_evidence_score(
     return final, pos_score, dimensions_score, contributions
 
 
+def calculate_unified_score(
+    extracted_facts: dict,
+    item_config: dict,
+) -> Tuple[int, float, float, Dict[str, Any]]:
+    """Calculates unified score for field-type aware schema profiles.
+
+    Supports field types: boolean, number, enum, tier, text.
+    Handles field properties: importance, buyer_wants, missing_behavior, polarity.
+    """
+    field_defs = item_config.get("fields", [])
+    dimensions_enabled = item_config.get("dimensions_enabled", True)
+    dimensions_weight = float(
+        item_config.get("dimensions_weight", 0.35 if dimensions_enabled else 0.0)
+    )
+
+    criteria_facts = extracted_facts.get("criteria", {})
+    dimensions_facts = extracted_facts.get("dimensions", {})
+
+    total_max_points = 0.0
+    earned_points = 0.0
+    critical_gaps = 0
+    contributions = {}
+
+    for field in field_defs:
+        fid = field.get("id")
+        ftype = field.get("type", "boolean")
+        importance = field.get("importance", "medium")
+        pts = _IMPORTANCE_PTS.get(importance, 2)
+        total_max_points += pts
+
+        fact_entry = criteria_facts.get(fid, {})
+        extracted_val = (
+            fact_entry.get("value") if isinstance(fact_entry, dict) else None
+        )
+
+        missing_behavior = field.get("missing_behavior", "neutral")
+        polarity = field.get("polarity", "positive")
+        buyer_wants = field.get("buyer_wants", {})
+
+        field_earned = 0.0
+        status = "neutral"
+
+        if extracted_val is None or extracted_val == "unknown":
+            if missing_behavior == "critical_gap":
+                critical_gaps += 1
+                status = "missing_critical"
+            elif missing_behavior == "penalize":
+                field_earned = -0.5 * pts
+                status = "penalized_missing"
+            else:
+                status = "missing"
+        else:
+            if ftype == "boolean":
+                is_yes = str(extracted_val).lower() in ("yes", "y", "true", "1")
+                is_no = str(extracted_val).lower() in ("no", "n", "false", "0")
+                target_match = buyer_wants.get(
+                    "match", True if polarity != "negative" else False
+                )
+
+                if (is_yes and target_match is True) or (
+                    is_no and target_match is False
+                ):
+                    field_earned = pts
+                    status = "satisfied"
+                elif (is_yes and target_match is False) or (
+                    is_no and target_match is True
+                ):
+                    field_earned = 0.0 if polarity != "negative" else -1.0 * pts
+                    status = "violated"
+
+            elif ftype == "number":
+                try:
+                    num_val = float(extracted_val)
+                    req_min = buyer_wants.get("min")
+                    req_max = buyer_wants.get("max")
+                    is_ok = True
+                    if req_min is not None and num_val < float(req_min):
+                        is_ok = False
+                    if req_max is not None and num_val > float(req_max):
+                        is_ok = False
+
+                    if is_ok:
+                        field_earned = pts
+                        status = "satisfied"
+                    else:
+                        field_earned = 0.0
+                        status = "violated"
+                except (ValueError, TypeError):
+                    status = "invalid_number"
+
+            elif ftype == "enum":
+                preferred = buyer_wants.get("preferred", [])
+                excluded = buyer_wants.get("excluded", [])
+                val_str = str(extracted_val).strip()
+
+                if val_str in preferred:
+                    field_earned = pts
+                    status = "satisfied"
+                elif val_str in excluded:
+                    field_earned = -0.5 * pts
+                    status = "violated"
+                else:
+                    field_earned = 0.5 * pts
+                    status = "partial"
+
+            elif ftype == "tier":
+                try:
+                    tier_val = float(extracted_val)
+                    min_tier = float(buyer_wants.get("min", 5))
+                    if tier_val >= min_tier:
+                        field_earned = pts
+                        status = "satisfied"
+                    else:
+                        ratio = max(0.0, tier_val / min_tier)
+                        field_earned = pts * ratio
+                        status = "partial"
+                except (ValueError, TypeError):
+                    status = "invalid_tier"
+
+            elif ftype == "text":
+                if buyer_wants.get("present", True):
+                    field_earned = pts if extracted_val else 0.0
+                    status = "satisfied" if extracted_val else "missing"
+
+        earned_points += field_earned
+        contributions[fid] = {
+            "value": extracted_val,
+            "earned": field_earned,
+            "max": pts,
+            "status": status,
+        }
+
+    raw_field_score = (max(0.0, earned_points) / max(total_max_points, 1.0)) * 100.0
+
+    # Handle dimensions if enabled
+    dimensions_score = 50.0
+    if dimensions_enabled:
+        expected_dims = [
+            "trustworthiness",
+            "transparency",
+            "conditionConfidence",
+            "documentationQuality",
+            "hiddenRiskSuspicion",
+            "marketAboveAverageSignal",
+        ]
+        dim_scores = []
+        for dim_key in expected_dims:
+            dim_data = dimensions_facts.get(dim_key, {})
+            raw = dim_data.get("score", 3) if isinstance(dim_data, dict) else 3
+            try:
+                raw = max(1, min(5, int(float(raw))))
+            except (ValueError, TypeError):
+                raw = 3
+            effective = (6 - raw) if dim_key == "hiddenRiskSuspicion" else raw
+            dim_scores.append(((effective - 1) / 4) * 100)
+        dimensions_score = sum(dim_scores) / max(len(dim_scores), 1)
+
+    field_weight = 1.0 - dimensions_weight
+    blended = (raw_field_score * field_weight) + (dimensions_score * dimensions_weight)
+
+    # Penalize critical gaps
+    if critical_gaps > 0:
+        blended = blended * (0.8**critical_gaps)
+
+    final_score = max(0, min(100, round(blended)))
+    return final_score, raw_field_score, dimensions_score, contributions
+
+
 def score_listing(extracted_facts: dict, item_config: dict) -> ScoringResult:
     """Unified entry point to score a listing based on extracted facts and campaign profile.
 
-    This function automatically routes between legacy blended scoring and new evidence-first scoring
-    based on the profile configuration.
+    This function automatically routes between legacy blended scoring, evidence-first scoring,
+    and the unified field-type aware scoring.
     """
+    has_unified_fields = bool(item_config.get("fields"))
     is_new_schema = bool(
         item_config.get("explicit_positive_criteria")
         or item_config.get("explicit_negative_criteria")
     )
 
-    if is_new_schema:
+    if has_unified_fields:
+        (
+            score,
+            criteria_score,
+            dimensions_score,
+            contributions,
+        ) = calculate_unified_score(extracted_facts, item_config)
+    elif is_new_schema:
         criteria = extracted_facts.get("criteria", {})
         dimensions = extracted_facts.get("dimensions", {})
         ref_comp = extracted_facts.get("reference_comparison", {})
@@ -375,5 +551,5 @@ def score_listing(extracted_facts: dict, item_config: dict) -> ScoringResult:
         criteria_score=criteria_score,
         dimensions_score=dimensions_score,
         contributions=contributions,
-        is_new_schema=is_new_schema,
+        is_new_schema=is_new_schema or has_unified_fields,
     )

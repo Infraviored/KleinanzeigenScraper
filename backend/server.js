@@ -521,15 +521,15 @@ app.post('/api/knowledge-sets', async (req, res) => {
       return res.status(400).json({ error: 'Missing knowledge set name' });
     }
 
-    // Enforce boolean-only planner schema
-    if (item_json) {
+    // Enforce planner schema (allowing fields with boolean, number, enum, tier, text)
+    if (item_json && !item_json.fields) {
       const criteria = item_json.extraction_criteria || [];
       const weights = item_json.scoring_model?.weights || {};
 
       for (const c of criteria) {
         if (c.type !== 'boolean') {
           return res.status(400).json({ 
-            error: `Legacy mixed-type criteria detected: Criterion '${c.id}' has type '${c.type}'. Only 'boolean' type is supported. Please recreate or update this profile.` 
+            error: `Legacy mixed-type criteria detected: Criterion '${c.id}' has type '${c.type}'. Only 'boolean' type is supported in legacy format. Use fields schema for typed fields.` 
           });
         }
       }
@@ -537,11 +537,12 @@ app.post('/api/knowledge-sets', async (req, res) => {
       for (const [cid, w] of Object.entries(weights)) {
         if (w && typeof w.satisfied_if !== 'boolean') {
           return res.status(400).json({
-            error: `Legacy mixed-type criteria weights detected: Weight '${cid}' has satisfied_if value '${w.satisfied_if}' which is not a boolean. Only boolean expectations are supported.`
+            error: `Legacy mixed-type criteria weights detected: Weight '${cid}' has satisfied_if value '${w.satisfied_if}' which is not a boolean.`
           });
         }
       }
     }
+
 
     let ksId = id;
     const jsonStr = JSON.stringify(item_json || {});

@@ -42,7 +42,7 @@ Do not add prose before or after the JSON.
 {
   "criteria": {
     "criterionId": {
-      "value": "yes | no | unknown",
+      "value": "see the Criteria value formats listed under <rules>",
       "evidence_quote": "short exact quote or empty string",
       "reasoning": "short evidence-based explanation, max 160 chars"
     }
@@ -77,10 +77,7 @@ Do not add prose before or after the JSON.
 </output_schema>
 
 <rules>
-- Criteria:
-  - yes = explicitly supported in the listing
-  - no = explicitly contradicted OR explicit warning present
-  - unknown = not clearly stated
+{{CRITERIA_VALUE_SPEC}}
 - Never infer “safe” from silence.
 - Never infer “good” from seller tone alone.
 - Dimensions:
