@@ -109,6 +109,92 @@ def validate_claim(claim):
     return True, ""
 
 
+def default_url_checker(timeout=8):
+    """Returns a callable that reports whether a URL actually resolves.
+
+    Checking the shape of a URL is not the same as checking that it exists: a
+    model that invents "https://www.motor-talk.de/forum/n47-t9999999.html" clears
+    every syntactic test. Network failures are treated as "unknown" rather than
+    "dead", so a flaky connection does not silently strip a good dossier.
+    """
+    import requests
+
+    session = requests.Session()
+
+    def check(url):
+        try:
+            response = session.head(
+                url, timeout=timeout, allow_redirects=True, headers=BROWSER_HEADERS
+            )
+            if response.status_code >= 400:
+                # Some hosts reject HEAD but serve GET.
+                response = session.get(
+                    url, timeout=timeout, allow_redirects=True, headers=BROWSER_HEADERS
+                )
+            return classify_status(response.status_code)
+        except Exception as exc:
+            logger.info("Could not verify %s (%s); treating as unknown.", url, exc)
+            return None
+
+    return check
+
+
+# Only an explicit "this resource does not exist" counts as dead. Measured
+# against motor-talk.de, whose real homepage answers 403 to a plain client: bot
+# protection, a rate limit or an outage would otherwise strip legitimate forum
+# sources, which are exactly where used-vehicle knowledge lives.
+DEAD_STATUSES = frozenset({404, 410})
+
+BROWSER_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (X11; Linux x86_64; rv:120.0) Gecko/20100101 Firefox/120.0"
+    ),
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "de-DE,de;q=0.9,en;q=0.8",
+}
+
+
+def classify_status(status_code):
+    """True = resolves, False = definitively gone, None = could not be determined."""
+    if status_code < 400:
+        return True
+    if status_code in DEAD_STATUSES:
+        return False
+    return None
+
+
+def verify_sources(payload, url_checker):
+    """Drops claims whose every source URL is confirmed dead.
+
+    A claim survives if at least one source resolves, or if none could be checked
+    — the aim is to remove inventions, not to punish an unreachable network.
+    Returns (payload, removed).
+    """
+    kept, removed = [], []
+
+    for claim in payload.get("claims", []):
+        urls = source_urls(claim)
+        results = [url_checker(url) for url in urls]
+
+        if any(result is True for result in results):
+            kept.append(claim)
+        elif all(result is False for result in results) and results:
+            removed.append({"claim": claim, "reason": "no source URL resolves"})
+            logger.warning(
+                "Dropping claim %r: none of its %d source URL(s) resolve.",
+                (claim.get("statement") or "")[:60],
+                len(urls),
+            )
+        else:
+            # Inconclusive: keep, but say so rather than pretending it is verified.
+            claim = dict(claim, sources_unverified=True)
+            kept.append(claim)
+
+    cleaned = dict(payload)
+    cleaned["claims"] = kept
+    return cleaned, removed
+
+
 def sanitize(payload):
     """Drops unsourced or malformed claims. Returns (payload, dropped).
 

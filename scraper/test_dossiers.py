@@ -226,3 +226,90 @@ def test_failed_research_returns_nothing_rather_than_an_empty_dossier(conn):
     )
     assert payload is None and cached is False
     assert dossiers.get(conn, "k") is None
+
+
+# --- source verification -------------------------------------------------
+
+LIVE = "https://www.motor-talk.de/forum/n47-steuerkette-t3470450.html"
+DEAD = "https://www.motor-talk.de/forum/erfunden-t9999999.html"
+
+
+def claim_with(*urls, kind="construction_defect"):
+    return {"kind": kind, "statement": "s", "sources": list(urls)}
+
+
+def test_a_claim_whose_urls_all_404_is_removed():
+    """A well-formed but invented URL passes every syntactic check."""
+    payload = {"claims": [claim_with(DEAD)]}
+    cleaned, removed = dossiers.verify_sources(payload, lambda url: url == LIVE)
+
+    assert cleaned["claims"] == []
+    assert removed[0]["reason"] == "no source URL resolves"
+
+
+def test_one_live_source_is_enough_to_keep_a_claim():
+    payload = {"claims": [claim_with(DEAD, LIVE)]}
+    cleaned, removed = dossiers.verify_sources(payload, lambda url: url == LIVE)
+
+    assert len(cleaned["claims"]) == 1
+    assert removed == []
+
+
+def test_an_unreachable_network_does_not_strip_a_dossier():
+    """Verification must remove inventions, not punish a flaky connection."""
+    payload = {"claims": [claim_with(LIVE)]}
+    cleaned, removed = dossiers.verify_sources(payload, lambda url: None)
+
+    assert len(cleaned["claims"]) == 1
+    assert removed == []
+    assert cleaned["claims"][0]["sources_unverified"] is True
+
+
+def test_a_partially_checkable_claim_is_kept_and_marked():
+    payload = {"claims": [claim_with(DEAD, LIVE)]}
+    checks = {DEAD: False, LIVE: None}
+    cleaned, _ = dossiers.verify_sources(payload, lambda url: checks[url])
+
+    assert len(cleaned["claims"]) == 1
+    assert cleaned["claims"][0]["sources_unverified"] is True
+
+
+def test_verification_leaves_the_rest_of_the_payload_alone():
+    payload = {
+        "summary": "s",
+        "check_fields": [{"id": "x"}],
+        "claims": [claim_with(LIVE)],
+    }
+    cleaned, _ = dossiers.verify_sources(payload, lambda url: True)
+
+    assert cleaned["summary"] == "s"
+    assert cleaned["check_fields"] == [{"id": "x"}]
+
+
+def test_verification_composes_with_sanitisation():
+    """Unsourced claims go first, then the surviving URLs are checked."""
+    payload = {
+        "claims": [
+            claim_with(LIVE),
+            claim_with(DEAD),
+            {"kind": "recall", "statement": "no sources at all", "sources": []},
+        ]
+    }
+    sanitised, dropped = dossiers.sanitize(payload)
+    verified, removed = dossiers.verify_sources(sanitised, lambda url: url == LIVE)
+
+    assert len(dropped) == 1
+    assert len(removed) == 1
+    assert len(verified["claims"]) == 1
+
+
+def test_only_a_definitive_404_counts_as_dead():
+    """403 from bot protection must not be read as a dead source."""
+    assert dossiers.classify_status(200) is True
+    assert dossiers.classify_status(301) is True
+    assert dossiers.classify_status(404) is False
+    assert dossiers.classify_status(410) is False
+    # Blocked, rate-limited or broken: unknown, not gone.
+    assert dossiers.classify_status(403) is None
+    assert dossiers.classify_status(429) is None
+    assert dossiers.classify_status(500) is None
