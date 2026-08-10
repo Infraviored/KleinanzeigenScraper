@@ -53,9 +53,10 @@ def get_or_extract(
     """Returns an ExtractionResult, calling the model only on a cache miss.
 
     `listing` is a mapping with at least id, title, detailed_description and
-    details. `call_model` takes the prompt string and returns the parsed facts
-    dict; it is injected so this module stays free of provider concerns and
-    testable without network access.
+    details. `call_model` is called as call_model(prompt, fields) and returns the
+    parsed facts dict; it receives the field definitions so it can validate the
+    response against them. It is injected so this module stays free of provider
+    concerns and testable without network access.
     """
     listing_id = listing["id"]
     key = playbook["key"]
@@ -86,7 +87,7 @@ def get_or_extract(
         expert_knowledge or "",
     )
 
-    facts = call_model(prompt)
+    facts = call_model(prompt, config["fields"])
     if facts is None:
         raise RuntimeError(f"Extraction produced no facts for listing {listing_id}")
 

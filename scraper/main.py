@@ -230,6 +230,33 @@ def main():
 
     # 2. Processing Mode
     if args.mode in ["process", "both"]:
+        # Playbook-backed categories run through the decoupled pipeline first:
+        # it extracts one fact sheet per listing and scores every buyer against
+        # it without further model calls. Listings it handles are marked
+        # processed, so the legacy worker below only picks up the remainder.
+        try:
+            import pipeline
+
+            outcomes = pipeline.run(conn, pipeline.default_model_caller())
+            stats = pipeline.summarise(outcomes)
+            if stats["processed"]:
+                logger.info(
+                    "Pipeline: %d listing(s) processed, %d model call(s), "
+                    "%d served from fact-sheet cache, %d identity/identities resolved.",
+                    stats["processed"],
+                    stats["model_calls"],
+                    stats["from_cache"],
+                    stats["identities_resolved"],
+                )
+            for reason, count in stats["skip_reasons"].items():
+                logger.info(
+                    "Pipeline left %d listing(s) to the legacy worker (%s).",
+                    count,
+                    reason,
+                )
+        except Exception as e:
+            logger.error(f"Playbook pipeline failed, falling back entirely: {str(e)}")
+
         logger.info("Starting processing mode via agent_worker...")
         conn.close()  # Close connection to prevent sqlite locks during process spawn
 

@@ -48,9 +48,10 @@ class CountingModel:
         self.facts = facts if facts is not None else FACTS
         self.last_prompt = None
 
-    def __call__(self, prompt):
+    def __call__(self, prompt, fields=None):
         self.calls += 1
         self.last_prompt = prompt
+        self.last_fields = fields
         return self.facts
 
 
@@ -224,3 +225,49 @@ def test_cache_stats_report_coverage(conn, laptops):
     get_or_extract(conn, dict(LISTING, id="test-2"), laptops, model)
 
     assert fact_sheets.stats(conn) == {"sheets": 2, "listings": 2, "playbooks": 1}
+
+
+def test_generated_starter_intents_resolve_against_every_playbook():
+    """The intent generator must not emit field ids a playbook cannot score."""
+    import os
+    import sys
+
+    sys.path.insert(
+        0,
+        os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scripts"
+        ),
+    )
+    from make_intent import build_intent
+
+    for key, playbook in playbooks.all_playbooks().items():
+        intent = build_intent(playbook)
+        resolved, unknown = playbooks.resolve_scoring_fields(playbook, intent["fields"])
+
+        assert unknown == [], f"{key}: generated intent references unknown fields"
+        assert resolved, f"{key}: generated intent scores nothing"
+        # The annotation keys are documentation only and must not leak into scoring.
+        assert all("_label" not in f and "_type" not in f for f in resolved)
+
+
+def test_generated_intent_scores_a_fact_sheet_without_error(conn, laptops):
+    import os
+    import sys
+
+    sys.path.insert(
+        0,
+        os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scripts"
+        ),
+    )
+    from make_intent import build_intent
+
+    model = CountingModel()
+    sheet = get_or_extract(conn, LISTING, laptops, model).facts
+
+    result, unknown = score_against_intent(
+        sheet, laptops, build_intent(laptops), score_listing
+    )
+
+    assert unknown == []
+    assert 0 <= result.score <= 100
