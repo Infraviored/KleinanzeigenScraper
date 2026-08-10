@@ -121,7 +121,13 @@ alle 9 Quellenangaben erfunden („BMW Service Bulletin #11 01 12"). Der Validat
 verlangt deshalb eine abrufbare http(s)-URL. Der Agent braucht zwingend ein
 Suchwerkzeug — ohne das liefert er nichts Verwertbares.
 
-Weiter offen: URL-Erreichbarkeit tatsächlich prüfen, nicht nur die Form.
+`verify_sources` prüft die Erreichbarkeit inzwischen tatsächlich. Zwei
+bewusste Asymmetrien: eine Behauptung überlebt, wenn *eine* Quelle auflöst oder
+keine prüfbar war (unbestätigte werden als `sources_unverified` markiert), und
+nur 404/410 gelten als tot — 403 ist Bot-Schutz, kein toter Link. Ohne diese
+Unterscheidung hätte die echte motor-talk-Startseite als tot gegolten.
+
+Weiter offen: der Agent selbst. Er braucht ein Suchwerkzeug.
 
 ### P5 — harte Constraints (erledigt) und Gesprächs-Intent (offen)
 Intent-Felder mit `"hard": true` setzen den Score auf 0. Verletzung und
