@@ -7,6 +7,12 @@ import logging
 from logging.handlers import RotatingFileHandler
 from openai import OpenAI
 from config import API_KEY, LLM_MODEL
+
+try:
+    from config import API_BASE_URL
+except ImportError:
+    # Older config.py files predate the configurable endpoint.
+    API_BASE_URL = None
 from prompts import build_evaluation_prompt, get_outreach_draft_prompt
 from scoring import score_listing
 
@@ -43,9 +49,54 @@ root_logger.addHandler(file_handler)
 
 logger = logging.getLogger(__name__)
 
-# Initialize OpenAI client
+# Initialize OpenAI client. base_url stays None for OpenAI itself; pointing it at
+# an OpenAI-compatible gateway (e.g. OpenRouter) is enough to switch providers.
 openai_key = os.environ.get("OPENAI_API_KEY") or API_KEY
-client = OpenAI(api_key=openai_key)
+openai_base_url = os.environ.get("OPENAI_BASE_URL") or API_BASE_URL
+client = OpenAI(api_key=openai_key, base_url=openai_base_url or None)
+
+
+def _is_openai_reasoning_model(model=LLM_MODEL):
+    """OpenAI's reasoning models reject `temperature` and rename the token cap."""
+    return "gpt-5" in model or model.startswith("o1") or model.startswith("o3")
+
+
+def get_response_text(response):
+    """Returns the assistant text, tolerating an empty completion.
+
+    Reasoning models (e.g. deepseek-v4-flash) spend part of the token budget on
+    internal reasoning and return `content: None` when the cap is hit before any
+    visible text is produced. Callers used to dereference `.strip()` on that None
+    and die with an AttributeError, so normalise it to an empty string here and
+    let the existing validation/retry path handle it.
+    """
+    choice = response.choices[0]
+    content = choice.message.content
+    if not content:
+        logger.warning(
+            "Model returned empty content (finish_reason=%s). "
+            "This usually means max_tokens was exhausted by reasoning tokens.",
+            getattr(choice, "finish_reason", "unknown"),
+        )
+        return ""
+    return content.strip()
+
+
+def build_llm_kwargs(messages, max_tokens, temperature=0.0):
+    """Builds chat-completion kwargs matching the configured model's dialect.
+
+    Reasoning models take `max_completion_tokens` and no temperature; every other
+    model (including those served via OpenRouter) takes `max_tokens`.
+    """
+    kwargs = {"model": LLM_MODEL, "messages": messages}
+    if _is_openai_reasoning_model():
+        kwargs["max_completion_tokens"] = max_tokens
+    else:
+        kwargs["max_tokens"] = max_tokens
+        kwargs["temperature"] = temperature
+    return kwargs
+
+
 extractor = EvidenceExtractor()
 
 DB_PATH = os.path.join(
@@ -245,32 +296,39 @@ def process_unprocessed_listings(target_listing_id=None, campaign_id=None):
 
         try:
             item_config = json.loads(listing["item_json"] or "{}")
-            # Support both old flat extraction_criteria and new split schema
-            criteria_list = item_config.get("extraction_criteria") or item_config.get(
-                "explicit_positive_criteria", []
-            ) + item_config.get("explicit_negative_criteria", [])
+            fields_list = item_config.get("fields", [])
+            if fields_list:
+                criteria_list = fields_list
+            else:
+                # Support both old flat extraction_criteria and new split schema
+                criteria_list = item_config.get(
+                    "extraction_criteria"
+                ) or item_config.get(
+                    "explicit_positive_criteria", []
+                ) + item_config.get("explicit_negative_criteria", [])
             scoring_model = item_config.get("scoring_model", {})
         except Exception as e:
             logger.error(f"Error parsing item_json for listing {listing_id}: {str(e)}")
             continue
 
-        # Check for legacy non-boolean criteria/weights in python
+        # Check for legacy non-boolean criteria/weights in python (only if NOT using unified fields)
         is_legacy_profile = False
         legacy_details = []
-        for c in criteria_list:
-            if c.get("type") != "boolean":
-                is_legacy_profile = True
-                legacy_details.append(
-                    f"Criterion '{c.get('id')}' has unsupported type '{c.get('type')}' (only 'boolean' is supported)."
-                )
+        if not fields_list:
+            for c in criteria_list:
+                if c.get("type") != "boolean":
+                    is_legacy_profile = True
+                    legacy_details.append(
+                        f"Criterion '{c.get('id')}' has unsupported type '{c.get('type')}' (only 'boolean' is supported)."
+                    )
 
-        weights = scoring_model.get("weights", {})
-        for cid, w in weights.items():
-            if w and not isinstance(w.get("satisfied_if"), bool):
-                is_legacy_profile = True
-                legacy_details.append(
-                    f"Weight '{cid}' has unsupported satisfied_if value '{w.get('satisfied_if')}' (must be a boolean)."
-                )
+            weights = scoring_model.get("weights", {})
+            for cid, w in weights.items():
+                if w and not isinstance(w.get("satisfied_if"), bool):
+                    is_legacy_profile = True
+                    legacy_details.append(
+                        f"Weight '{cid}' has unsupported satisfied_if value '{w.get('satisfied_if')}' (must be a boolean)."
+                    )
 
         if is_legacy_profile:
             err_msg = "; ".join(legacy_details)
@@ -323,19 +381,9 @@ def process_unprocessed_listings(target_listing_id=None, campaign_id=None):
         try:
             messages = [{"role": "user", "content": prompt}]
 
-            kwargs = {
-                "model": LLM_MODEL,
-                "messages": messages,
-                "max_completion_tokens": 16000,
-            }
-            if not (
-                "gpt-5" in LLM_MODEL
-                or LLM_MODEL.startswith("o1")
-                or LLM_MODEL.startswith("o3")
-            ):
-                kwargs["temperature"] = 0.0
+            kwargs = build_llm_kwargs(messages, max_tokens=32000)
             response = client.chat.completions.create(**kwargs)
-            response_text = response.choices[0].message.content.strip()
+            response_text = get_response_text(response)
 
             initial_response_text = response_text
             retry_prompt_val = None
@@ -365,11 +413,7 @@ def process_unprocessed_listings(target_listing_id=None, campaign_id=None):
                 retry_prompt_val = retry_prompt
 
                 retry_messages = []
-                if (
-                    "gpt-5" in LLM_MODEL
-                    or LLM_MODEL.startswith("o1")
-                    or LLM_MODEL.startswith("o3")
-                ):
+                if _is_openai_reasoning_model():
                     retry_messages.append({"role": "user", "content": retry_prompt})
                 else:
                     retry_messages.append(
@@ -380,21 +424,11 @@ def process_unprocessed_listings(target_listing_id=None, campaign_id=None):
                     )
                     retry_messages.append({"role": "user", "content": retry_prompt})
 
-                retry_kwargs = {
-                    "model": LLM_MODEL,
-                    "messages": retry_messages,
-                    "max_completion_tokens": 16000,
-                }
-                if not (
-                    "gpt-5" in LLM_MODEL
-                    or LLM_MODEL.startswith("o1")
-                    or LLM_MODEL.startswith("o3")
-                ):
-                    retry_kwargs["temperature"] = 0.0
+                retry_kwargs = build_llm_kwargs(retry_messages, max_tokens=32000)
 
                 try:
                     response = client.chat.completions.create(**retry_kwargs)
-                    response_text = response.choices[0].message.content.strip()
+                    response_text = get_response_text(response)
                     retry_response_val = response_text
                     extracted_data, validation_errors = extractor.extract(
                         response_text, criteria_list
@@ -655,25 +689,19 @@ def generate_outreach_draft(listing_id):
     )
 
     try:
-        kwargs = {
-            "model": LLM_MODEL,
-            "messages": [
+        kwargs = build_llm_kwargs(
+            [
                 {
                     "role": "system",
                     "content": "You write elegant, friendly outreach messages for prospective buyers.",
                 },
                 {"role": "user", "content": prompt},
             ],
-            "max_completion_tokens": 2000,
-        }
-        if not (
-            "gpt-5" in LLM_MODEL
-            or LLM_MODEL.startswith("o1")
-            or LLM_MODEL.startswith("o3")
-        ):
-            kwargs["temperature"] = 0.7
+            max_tokens=2000,
+            temperature=0.7,
+        )
         response = client.chat.completions.create(**kwargs)
-        draft_message = response.choices[0].message.content.strip()
+        draft_message = get_response_text(response)
         print(draft_message)
         try:
             log_outreach_draft(listing_id, prompt, draft_message)
@@ -794,25 +822,18 @@ def analyze_conversation(listing_id):
     )
 
     try:
-        kwargs = {
-            "model": LLM_MODEL,
-            "messages": [
+        kwargs = build_llm_kwargs(
+            [
                 {
                     "role": "system",
                     "content": "You are a precise, objective chat analyzer.",
                 },
                 {"role": "user", "content": prompt},
             ],
-            "max_completion_tokens": 2000,
-        }
-        if not (
-            "gpt-5" in LLM_MODEL
-            or LLM_MODEL.startswith("o1")
-            or LLM_MODEL.startswith("o3")
-        ):
-            kwargs["temperature"] = 0.0
+            max_tokens=2000,
+        )
         response = client.chat.completions.create(**kwargs)
-        response_text = response.choices[0].message.content.strip()
+        response_text = get_response_text(response)
         try:
             log_conversation_analysis(listing_id, prompt, response_text)
         except Exception as log_err:
