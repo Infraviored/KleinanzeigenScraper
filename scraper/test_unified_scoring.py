@@ -305,3 +305,145 @@ def test_profile_without_fields_still_uses_the_legacy_path():
     res = score_listing({"criteria": {"unfallfrei": {"value": "yes"}}}, item_config)
     assert res.is_new_schema is False
     assert 0 <= res.score <= 100
+
+
+def test_violated_hard_constraint_disqualifies_regardless_of_other_fields():
+    """A2 licence: a 90 kW bike is not a poor match, it is not a candidate."""
+    item_config = {
+        "fields": [
+            {
+                "id": "powerKw",
+                "type": "number",
+                "importance": "low",
+                "hard": True,
+                "buyer_wants": {"max": 35},
+            },
+            {
+                "id": "mileageKm",
+                "type": "number",
+                "importance": "high",
+                "buyer_wants": {"max": 50000},
+            },
+        ],
+        "dimensions_enabled": False,
+    }
+    facts = {"criteria": {"powerKw": {"value": 90}, "mileageKm": {"value": 12000}}}
+
+    res = score_listing(facts, item_config)
+
+    assert res.disqualified is True
+    assert res.disqualified_by == ("powerKw",)
+    assert res.score == 0
+
+
+def test_satisfied_hard_constraint_leaves_the_score_untouched():
+    item_config = {
+        "fields": [
+            {
+                "id": "powerKw",
+                "type": "number",
+                "importance": "low",
+                "hard": True,
+                "buyer_wants": {"max": 35},
+            }
+        ],
+        "dimensions_enabled": False,
+    }
+
+    res = score_listing({"criteria": {"powerKw": {"value": 35}}}, item_config)
+
+    assert res.disqualified is False
+    assert res.score == 100
+
+
+def test_missing_hard_constraint_is_flagged_not_disqualifying():
+    """Silence from an amateur seller is a question, not a disqualification."""
+    item_config = {
+        "fields": [
+            {
+                "id": "powerKw",
+                "type": "number",
+                "importance": "medium",
+                "hard": True,
+                "buyer_wants": {"max": 35},
+            }
+        ],
+        "dimensions_enabled": False,
+    }
+
+    res = score_listing({"criteria": {}}, item_config)
+
+    assert res.disqualified is False
+    assert res.unverified_constraints == ("powerKw",)
+
+
+def test_unparseable_hard_constraint_value_disqualifies():
+    """An unusable value cannot demonstrate compliance with a legal limit."""
+    item_config = {
+        "fields": [
+            {
+                "id": "powerKw",
+                "type": "number",
+                "importance": "medium",
+                "hard": True,
+                "buyer_wants": {"max": 35},
+            }
+        ],
+        "dimensions_enabled": False,
+    }
+
+    res = score_listing({"criteria": {"powerKw": {"value": "viel"}}}, item_config)
+
+    assert res.disqualified_by == ("powerKw",)
+
+
+def test_enum_hard_constraint_disqualifies_on_excluded_value():
+    item_config = {
+        "fields": [
+            {
+                "id": "conditionGrade",
+                "type": "enum",
+                "importance": "medium",
+                "hard": True,
+                "buyer_wants": {"preferred": ["gut"], "excluded": ["bastler"]},
+            }
+        ],
+        "dimensions_enabled": False,
+    }
+
+    res = score_listing(
+        {"criteria": {"conditionGrade": {"value": "bastler"}}}, item_config
+    )
+
+    assert res.disqualified_by == ("conditionGrade",)
+
+
+def test_fields_without_the_hard_flag_never_disqualify():
+    item_config = {
+        "fields": [
+            {
+                "id": "ramGb",
+                "type": "number",
+                "importance": "high",
+                "buyer_wants": {"min": 32},
+            }
+        ],
+        "dimensions_enabled": False,
+    }
+
+    res = score_listing({"criteria": {"ramGb": {"value": 8}}}, item_config)
+
+    assert res.disqualified is False
+    assert res.disqualified_by == ()
+
+
+def test_legacy_profiles_report_no_constraints():
+    item_config = {
+        "extraction_criteria": [{"id": "unfallfrei", "type": "boolean"}],
+        "scoring_model": {"weights": {"unfallfrei": {"satisfied_if": True}}},
+    }
+
+    res = score_listing({"criteria": {"unfallfrei": {"value": "yes"}}}, item_config)
+
+    assert res.disqualified_by == ()
+    assert res.unverified_constraints == ()

@@ -99,7 +99,13 @@ def resolve_scoring_fields(playbook, intent_fields):
             "type": base.get("type", "boolean"),
             "label": base.get("label", fid),
         }
-        for key in ("importance", "buyer_wants", "missing_behavior", "polarity"):
+        for key in (
+            "importance",
+            "buyer_wants",
+            "missing_behavior",
+            "polarity",
+            "hard",
+        ):
             if key in wanted:
                 merged[key] = wanted[key]
         resolved.append(merged)

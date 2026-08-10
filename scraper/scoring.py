@@ -12,6 +12,43 @@ class ScoringResult:
     dimensions_score: float
     contributions: Dict[str, Any]
     is_new_schema: bool
+    # Field ids of hard constraints this listing violates. Non-empty means the
+    # listing is disqualified rather than merely poorly rated.
+    disqualified_by: Tuple[str, ...] = ()
+    # Hard constraints the listing could not be shown to satisfy because the
+    # fact is missing. Distinct from a violation: these are worth asking about,
+    # not discarding.
+    unverified_constraints: Tuple[str, ...] = ()
+
+    @property
+    def disqualified(self) -> bool:
+        return bool(self.disqualified_by)
+
+
+_UNMET_STATUSES = {"violated", "invalid_number", "invalid_tier"}
+_UNKNOWN_STATUSES = {"missing", "missing_critical", "penalized_missing", "neutral"}
+
+
+def evaluate_hard_constraints(contributions: Dict[str, Any]):
+    """Splits unmet hard constraints into violations and unverifiable ones.
+
+    The distinction decides what happens to the listing. A violation is a fact
+    that rules it out. A missing value only means the seller did not say — worth
+    raising as a question, but discarding on silence would throw away most of a
+    market where descriptions are written by amateurs.
+    """
+    violated, unverified = [], []
+
+    for fid, contribution in contributions.items():
+        if not isinstance(contribution, dict) or not contribution.get("hard"):
+            continue
+        status = contribution.get("status")
+        if status in _UNMET_STATUSES:
+            violated.append(fid)
+        elif status in _UNKNOWN_STATUSES:
+            unverified.append(fid)
+
+    return tuple(violated), tuple(unverified)
 
 
 def is_satisfied(value, satisfied_if):
@@ -448,6 +485,11 @@ def calculate_unified_score(
             "earned": field_earned,
             "max": pts,
             "status": status,
+            # A hard constraint is a legal or physical limit, not a preference:
+            # an A2 licence holder cannot buy a 90 kW motorcycle at any score,
+            # and a 200 cm sideboard does not fit a 180 cm alcove. Recorded here
+            # so score_listing can disqualify rather than merely deduct.
+            "hard": bool(field.get("hard")),
         }
 
     raw_field_score = (max(0.0, earned_points) / max(total_max_points, 1.0)) * 100.0
@@ -546,10 +588,21 @@ def score_listing(extracted_facts: dict, item_config: dict) -> ScoringResult:
             contributions,
         ) = calculate_blended_score(criteria, weights, dimensions)
 
+    disqualified_by, unverified = evaluate_hard_constraints(contributions)
+    if disqualified_by:
+        # Ranking a disqualified listing at all would put an unbuyable item in
+        # front of a buyer, so the score collapses rather than being reduced.
+        logger.info(
+            "Listing disqualified by hard constraint(s): %s", ", ".join(disqualified_by)
+        )
+        score = 0
+
     return ScoringResult(
         score=score,
         criteria_score=criteria_score,
         dimensions_score=dimensions_score,
         contributions=contributions,
         is_new_schema=is_new_schema or has_unified_fields,
+        disqualified_by=disqualified_by,
+        unverified_constraints=unverified,
     )

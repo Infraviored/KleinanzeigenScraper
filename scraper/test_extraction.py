@@ -271,3 +271,53 @@ def test_generated_intent_scores_a_fact_sheet_without_error(conn, laptops):
 
     assert unknown == []
     assert 0 <= result.score <= 100
+
+
+def test_hard_flag_survives_playbook_resolution():
+    """A constraint that silently became a preference would be worse than none."""
+    bikes = playbooks.get_playbook("vehicles/motorcycles")
+    resolved, unknown = playbooks.resolve_scoring_fields(
+        bikes,
+        [
+            {
+                "id": "powerKw",
+                "importance": "low",
+                "hard": True,
+                "buyer_wants": {"max": 35},
+            }
+        ],
+    )
+
+    assert unknown == []
+    assert resolved[0]["hard"] is True
+    assert resolved[0]["type"] == "number"
+
+
+def test_a2_constraint_disqualifies_through_the_full_intent_path(conn):
+    bikes = playbooks.get_playbook("vehicles/motorcycles")
+    facts = {
+        "criteria": {
+            "make": {"value": "Yamaha"},
+            "model": {"value": "MT-09"},
+            "powerKw": {"value": 87},
+            "mileageKm": {"value": 9000},
+        }
+    }
+    tom = {
+        "fields": [
+            {
+                "id": "powerKw",
+                "importance": "low",
+                "hard": True,
+                "buyer_wants": {"max": 35},
+            },
+            {"id": "mileageKm", "importance": "high", "buyer_wants": {"max": 30000}},
+        ],
+        "dimensions_enabled": False,
+    }
+
+    result, unknown = score_against_intent(facts, bikes, tom, score_listing)
+
+    assert unknown == []
+    assert result.disqualified is True
+    assert result.score == 0
