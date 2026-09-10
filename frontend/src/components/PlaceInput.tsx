@@ -143,10 +143,14 @@ export default function PlaceInput({ label, placeholder, value, onChange, emptyH
       ) : null}
 
       {open && matches.length > 0 && (
+        /* Wider than the field it belongs to, and able to grow past it. The
+           town name is the thing being chosen, so it gets the line to itself:
+           sharing it with the postal code and the state left "Landsberg ..."
+           truncated in a 220 px column, hiding the very word being read. */
         <ul
           id={listId}
           role="listbox"
-          className="absolute z-30 left-0 right-0 top-full mt-1 max-h-64 overflow-y-auto rounded-xl border border-slate-855 bg-slate-950 shadow-2xl py-1"
+          className="absolute z-30 left-0 top-full mt-1 min-w-full w-max max-w-[min(28rem,80vw)] max-h-72 overflow-y-auto rounded-xl border border-slate-855 bg-slate-950 shadow-2xl py-1"
         >
           {matches.map((place, index) => (
             <li
@@ -156,19 +160,18 @@ export default function PlaceInput({ label, placeholder, value, onChange, emptyH
               aria-selected={index === active}
               onMouseEnter={() => setActive(index)}
               onMouseDown={e => { e.preventDefault(); choose(place) }}
-              className={`px-3 py-2 cursor-pointer flex items-baseline gap-2 ${
+              className={`px-3 py-2 cursor-pointer ${
                 index === active ? 'bg-emerald-500/15' : ''
               }`}
             >
-              <span className="text-2xs font-mono text-slate-500 tabular-nums shrink-0">
-                {place.postal_code}
-              </span>
-              <span className="text-sm text-slate-200 font-semibold truncate">
+              <div className="text-sm text-slate-100 font-semibold leading-snug">
                 {place.qualifier ? `${place.name} ${place.qualifier}` : place.name}
-              </span>
-              <span className="text-2xs text-slate-500 ml-auto shrink-0 truncate">
-                {place.state}
-              </span>
+              </div>
+              <div className="text-2xs text-slate-500 flex items-center gap-2 leading-snug">
+                <span className="font-mono tabular-nums">{place.postal_code}</span>
+                <span aria-hidden="true">·</span>
+                <span>{place.state}</span>
+              </div>
             </li>
           ))}
         </ul>

@@ -13,7 +13,11 @@ try {
 }
 
 const app = express();
-const port = 3030;
+// Port and database are overridable so a throwaway instance can be started
+// beside the real one — which is what makes it possible to look at the
+// interface at all. Without it, every screen behind the login is unverifiable
+// except by asking the owner to describe what they see.
+const port = Number(process.env.PRISMDEALS_PORT) || 3030;
 const { spawn } = require('child_process');
 const places = require('./places');
 const sqlite3 = require('sqlite3').verbose();
@@ -26,7 +30,7 @@ if (process.env.NODE_ENV === 'production' && !process.env.JWT_SECRET) {
 const JWT_SECRET = process.env.JWT_SECRET || 'prismdeals_dev_secret_key_12345';
 
 // Database setup
-const dbPath = path.join(__dirname, '..', 'data', 'scraper.db');
+const dbPath = process.env.PRISMDEALS_DB || path.join(__dirname, '..', 'data', 'scraper.db');
 const db = new sqlite3.Database(dbPath);
 // WAL mode allows multiple concurrent readers/writers (parallel agent evals)
 db.run('PRAGMA journal_mode=WAL;');

@@ -1655,7 +1655,13 @@ export default function App() {
             </div>
 
             {activeSearches.length === 0 ? (
-              <Card className="p-8 max-w-xl mx-auto w-full relative overflow-hidden animate-fadeIn">
+              // The card widens for the route corridor: two place fields, two
+              // sliders and a suggestion list do not fit in the column that
+              // suits a single URL. `overflow-hidden` would clip the
+              // suggestions, so it only applies when there is nothing to clip.
+              <Card className={`p-8 mx-auto w-full relative animate-fadeIn ${
+                routeMode ? 'max-w-3xl' : 'max-w-xl overflow-hidden'
+              }`}>
                 <div className="absolute -right-16 -top-16 w-36 h-36 rounded-full bg-emerald-500/5 blur-3xl pointer-events-none" />
                 
                 <div className="space-y-1.5 text-center">
