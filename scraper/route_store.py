@@ -20,6 +20,7 @@ Two things do need somewhere to live:
 import datetime
 import json
 import logging
+import sqlite3
 
 logger = logging.getLogger(__name__)
 
@@ -54,14 +55,36 @@ CREATE TABLE IF NOT EXISTS listing_route_geo (
     lon             REAL,
     offroute_km     REAL,
     detour_min      REAL,
+    status          TEXT NOT NULL DEFAULT 'routed',
     computed_at     TEXT NOT NULL,
     PRIMARY KEY (listing_id, route_search_id)
 );
 """
 
+# Why a listing has no detour, which decides whether asking again is worthwhile.
+# Without this the three reasons are indistinguishable — all of them store a null
+# detour — and a routing service that was briefly down would mark every listing
+# of that run as settled forever.
+ROUTED = "routed"  # answered
+TOO_FAR = "too_far"  # deliberately not routed; distance already decides it
+UNPLACEABLE = "unplaceable"  # no coordinates, and none are coming
+FAILED = "failed"  # the attempt failed; try again next run
+
+RETRYABLE = (FAILED,)
+
 
 def ensure_schema(conn):
     conn.executescript(SCHEMA)
+
+    # Databases created before the status column exists still carry rows, and
+    # those rows are all settled results — the failure case is what the column
+    # was added to express, so defaulting them to "routed" is accurate.
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(listing_route_geo)")}
+    if "status" not in columns:
+        conn.execute(
+            "ALTER TABLE listing_route_geo ADD COLUMN status TEXT NOT NULL "
+            "DEFAULT 'routed'"
+        )
     conn.commit()
 
 
@@ -120,13 +143,36 @@ def save_plan(
         ).fetchone()
 
         if existing is None:
-            cursor.execute(
-                "INSERT INTO searches (campaign_id, name, url, enabled, "
-                "knowledge_set_id) VALUES (?, ?, ?, 1, ?)",
-                (campaign_id, label, circle.url, knowledge_set_id),
-            )
-            search_id = cursor.lastrowid
-        else:
+            try:
+                cursor.execute(
+                    "INSERT INTO searches (campaign_id, name, url, enabled, "
+                    "knowledge_set_id) VALUES (?, ?, ?, 1, ?)",
+                    (campaign_id, label, circle.url, knowledge_set_id),
+                )
+                search_id = cursor.lastrowid
+            except sqlite3.IntegrityError:
+                # Someone inserted this url between the SELECT above and here.
+                # `searches.url` is unique, so the row that won is the row this
+                # circle has to use — the same outcome as finding it in the
+                # first place, reached a moment later.
+                logger.info(
+                    "Search for %s was created concurrently; using that row.",
+                    circle.url,
+                )
+                existing = cursor.execute(
+                    "SELECT id, campaign_id, knowledge_set_id, enabled FROM "
+                    "searches WHERE url = ?",
+                    (circle.url,),
+                ).fetchone()
+                if existing is None:
+                    logger.warning(
+                        "Could not register or find a search for %s; this circle "
+                        "is not part of the route.",
+                        circle.url,
+                    )
+                    continue
+
+        if existing is not None:
             # `searches.url` is unique, so a corridor crossing a town another
             # search already covers has to reuse that row. Reuse is only safe
             # when the row means the same thing: a search bound to a different
@@ -246,14 +292,31 @@ def listings_for_route(conn, route_search_id):
     ]
 
 
-def save_geo(conn, route_search_id, listing_id, coordinates, offroute_km, detour_min):
+def save_geo(
+    conn,
+    route_search_id,
+    listing_id,
+    coordinates,
+    offroute_km,
+    detour_min,
+    status=ROUTED,
+):
     ensure_schema(conn)
     lat, lon = coordinates if coordinates else (None, None)
     conn.execute(
         "INSERT OR REPLACE INTO listing_route_geo "
-        "(listing_id, route_search_id, lat, lon, offroute_km, detour_min, computed_at) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?)",
-        (listing_id, route_search_id, lat, lon, offroute_km, detour_min, _now()),
+        "(listing_id, route_search_id, lat, lon, offroute_km, detour_min, status, "
+        "computed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        (
+            listing_id,
+            route_search_id,
+            lat,
+            lon,
+            offroute_km,
+            detour_min,
+            status,
+            _now(),
+        ),
     )
     conn.commit()
 
@@ -261,8 +324,8 @@ def save_geo(conn, route_search_id, listing_id, coordinates, offroute_km, detour
 def geo_for_route(conn, route_search_id):
     """Listing id -> what we know about its position on this route."""
     rows = conn.execute(
-        "SELECT listing_id, lat, lon, offroute_km, detour_min FROM listing_route_geo "
-        "WHERE route_search_id = ?",
+        "SELECT listing_id, lat, lon, offroute_km, detour_min, status "
+        "FROM listing_route_geo WHERE route_search_id = ?",
         (route_search_id,),
     ).fetchall()
     return {
@@ -270,16 +333,24 @@ def geo_for_route(conn, route_search_id):
             "coordinates": (row[1], row[2]) if row[1] is not None else None,
             "offroute_km": row[3],
             "detour_min": row[4],
+            "status": row[5],
         }
         for row in rows
     }
 
 
 def pending_geo(conn, route_search_id):
-    """Listings on this route that have no detour computed yet."""
+    """Listings on this route still worth asking about.
+
+    Never seen before, or seen and failed. A listing that was answered, was too
+    far to be worth routing, or has no resolvable place is settled — asking again
+    would cost a request and change nothing. A listing whose attempt failed is
+    not settled, and treating it as though it were is how one minute of routing
+    downtime turns into a permanent gap.
+    """
     known = geo_for_route(conn, route_search_id)
     return [
         listing
         for listing in listings_for_route(conn, route_search_id)
-        if listing["id"] not in known
+        if known.get(listing["id"], {}).get("status", FAILED) in RETRYABLE
     ]

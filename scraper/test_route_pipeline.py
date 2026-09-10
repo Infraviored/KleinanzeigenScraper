@@ -247,3 +247,126 @@ def test_ranking_puts_the_cheapest_detour_first_and_the_unknown_last(conn):
 def test_annotating_a_route_without_geometry_is_an_error(conn):
     with pytest.raises(ValueError, match="no stored geometry"):
         route_pipeline.annotate(conn, 999, client=FakeOsrm())
+
+
+# --- second review: retry semantics and concurrency -----------------------
+
+
+class BrokenOsrm(FakeOsrm):
+    """Routing that is down right now, but will not be forever."""
+
+    def duration_s(self, points):
+        raise routing.RoutingError("connection refused")
+
+
+def test_a_routing_outage_is_retried_rather_than_recorded_as_settled(conn):
+    """A minute of downtime must not become a permanent gap: the three reasons a
+    listing has no detour all stored a null, so they were indistinguishable."""
+    route_id, _ = make_route(conn)
+    seed_listing(conn, "a", "Bayern - Landsberg (Lech)", route_id)
+
+    outage = route_pipeline.annotate(conn, route_id, client=BrokenOsrm())
+    assert outage["failed"] == 1 and outage["routed"] == 0
+
+    recovered = route_pipeline.annotate(conn, route_id, client=FakeOsrm())
+
+    assert recovered["considered"] == 1, "the failed listing must come back"
+    assert recovered["routed"] == 1
+    assert route_store.geo_for_route(conn, route_id)["a"]["detour_min"] is not None
+
+
+def test_a_settled_listing_is_never_asked_about_again(conn):
+    """Answered, too far, or unplaceable — all three are done."""
+    route_id, _ = make_route(conn)
+    seed_listing(conn, "answered", "Bayern - Landsberg (Lech)", route_id)
+    seed_listing(conn, "far", "Nordrhein-Westfalen - Oberhausen", route_id, index=1)
+    seed_listing(conn, "nowhere", "Irgendwo - Nirgendwoburg", route_id, index=1)
+    route_pipeline.annotate(conn, route_id, client=FakeOsrm())
+
+    statuses = {
+        listing_id: row["status"]
+        for listing_id, row in route_store.geo_for_route(conn, route_id).items()
+    }
+    assert statuses == {
+        "answered": route_store.ROUTED,
+        "far": route_store.TOO_FAR,
+        "nowhere": route_store.UNPLACEABLE,
+    }
+
+    client = FakeOsrm()
+    assert route_pipeline.annotate(conn, route_id, client=client)["considered"] == 0
+    assert client.calls == 0
+
+
+def test_a_search_created_concurrently_is_adopted_not_crashed_into(conn):
+    """searches.url is unique, and the SELECT that precedes the INSERT is not
+    atomic. The row that wins the race is the row this circle has to use, so the
+    loser adopts it instead of raising IntegrityError."""
+    # A plan whose searches do not exist yet, or the SELECT finds them and the
+    # INSERT this test is about never runs.
+    plan = route_search.plan(
+        BASE,
+        FakeOsrm().route([(48.0, 10.0), (48.0, 11.0)]),
+        radius_km=30.0,
+        half_width_km=15.0,
+        resolver=route_search.LocationResolver(fetch=suggest),
+    )
+    assert plan.circles
+
+    class RacingCursor:
+        """Slips the row in just before save_plan's own INSERT reaches sqlite."""
+
+        def __init__(self, cursor, connection):
+            self._cursor = cursor
+            self._connection = connection
+            self.raced = False
+
+        def execute(self, sql, parameters=()):
+            if "INSERT INTO searches" in sql and not self.raced:
+                self.raced = True
+                self._connection.execute(
+                    "INSERT INTO searches (campaign_id, name, url, enabled, "
+                    "knowledge_set_id) VALUES (?, ?, ?, 1, ?)",
+                    (1, "someone else got there first", parameters[2], 1),
+                )
+            return self._cursor.execute(sql, parameters)
+
+        def __getattr__(self, name):
+            return getattr(self._cursor, name)
+
+    class RacingConnection:
+        def __init__(self, connection):
+            self._connection = connection
+            self.cursor_wrapper = None
+
+        def cursor(self):
+            self.cursor_wrapper = RacingCursor(
+                self._connection.cursor(), self._connection
+            )
+            return self.cursor_wrapper
+
+        def __getattr__(self, name):
+            return getattr(self._connection, name)
+
+    racing = RacingConnection(conn)
+
+    second_id, _ = route_store.save_plan(
+        racing,
+        plan,
+        base_url=BASE,
+        origin="86899",
+        destination="78462",
+        knowledge_set_id=1,
+    )
+
+    assert racing.cursor_wrapper.raced, "the fixture must actually cause the race"
+    assert second_id, "the race must not abort the plan"
+
+    circles = conn.execute(
+        "SELECT COUNT(*) FROM route_search_circles WHERE route_search_id = ?",
+        (second_id,),
+    ).fetchone()[0]
+    assert circles == len(plan.circles), "every circle still belongs to the route"
+
+    urls = conn.execute("SELECT COUNT(*), COUNT(DISTINCT url) FROM searches").fetchone()
+    assert urls[0] == urls[1], "and no duplicate url was created"

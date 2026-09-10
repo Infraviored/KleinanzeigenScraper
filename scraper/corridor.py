@@ -201,3 +201,61 @@ def nearest_vertex_index(point, polyline):
         range(len(polyline)),
         key=lambda index: haversine_km(point, polyline[index]),
     )
+
+
+# A vertex where the route turns by more than this has reversed rather than
+# merely bent. 120 degrees is well past any junction or hairpin a road takes
+# while still going somewhere, and well short of the 180 of a true turnaround.
+REVERSAL_DEGREES = 120.0
+
+
+def reversal_points(polyline, from_km=None, to_km=None, threshold_deg=REVERSAL_DEGREES):
+    """Arc lengths at which the route turns back on itself.
+
+    These are the points a router must be told about. Handed two positions on
+    either side of a turnaround, it will drive straight between them — which is
+    correct for a router and wrong for us, because the driver is going round the
+    turn. Everything between two consecutive waypoints is the router's choice,
+    so a turnaround that falls in such a gap is silently cut off.
+    """
+    if len(polyline) < 3:
+        return []
+
+    totals = cumulative_km(polyline)
+    found = []
+
+    for index in range(1, len(polyline) - 1):
+        if from_km is not None and totals[index] <= from_km:
+            continue
+        if to_km is not None and totals[index] >= to_km:
+            continue
+
+        previous, here, following = (
+            polyline[index - 1],
+            polyline[index],
+            polyline[index + 1],
+        )
+        lat_scale, lon_scale = _km_per_degree(here[0])
+
+        incoming = (
+            (here[1] - previous[1]) * lon_scale,
+            (here[0] - previous[0]) * lat_scale,
+        )
+        outgoing = (
+            (following[1] - here[1]) * lon_scale,
+            (following[0] - here[0]) * lat_scale,
+        )
+
+        length_in = math.hypot(*incoming)
+        length_out = math.hypot(*outgoing)
+        if length_in == 0 or length_out == 0:
+            continue
+
+        cosine = (incoming[0] * outgoing[0] + incoming[1] * outgoing[1]) / (
+            length_in * length_out
+        )
+        turn = math.degrees(math.acos(max(-1.0, min(1.0, cosine))))
+        if turn >= threshold_deg:
+            found.append(totals[index])
+
+    return found
