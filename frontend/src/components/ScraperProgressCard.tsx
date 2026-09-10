@@ -35,7 +35,7 @@ export default function ScraperProgressCard({
           <div className="flex items-center space-x-2">
             <div className="animate-spin w-4 h-4 border-2 border-emerald-400 border-t-transparent rounded-full" />
             <h3 className="text-sm font-bold text-slate-200">Active Scraping Session</h3>
-            <span className={`text-[9px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${phaseColor}`}>
+            <span className={`text-2xs px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${phaseColor}`}>
               {phaseLabel}
             </span>
           </div>
@@ -45,7 +45,7 @@ export default function ScraperProgressCard({
         </div>
         <div className="text-right shrink-0">
           <span className="text-lg font-black text-emerald-400 font-mono tracking-tight">{pct}%</span>
-          <span className="text-[10px] text-slate-550 block font-semibold">{current} / {total} Completed</span>
+          <span className="text-2xs text-slate-550 block font-semibold">{current} / {total} Completed</span>
         </div>
       </div>
 
@@ -61,7 +61,7 @@ export default function ScraperProgressCard({
       </div>
 
       {/* Time Remaining & Meta Details */}
-      <div className="flex items-center justify-between text-[11px] text-slate-500 font-medium px-1 pt-0.5">
+      <div className="flex items-center justify-between text-xs text-slate-500 font-medium px-1 pt-0.5">
         <div>
           {phase === 'harvesting' && remaining > 0 ? (
             <span className="flex items-center space-x-1">
@@ -78,7 +78,7 @@ export default function ScraperProgressCard({
             <span className="text-slate-400">Connecting to scraper worker...</span>
           )}
         </div>
-        <div className="text-[9px] text-slate-600 font-bold uppercase tracking-wider select-none">
+        <div className="text-2xs text-slate-600 font-bold uppercase tracking-wider select-none">
           Live Scraper
         </div>
       </div>

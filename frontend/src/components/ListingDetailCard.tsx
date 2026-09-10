@@ -87,9 +87,9 @@ export default function ListingDetailCard({
         <div className="flex-1 flex flex-col justify-between min-w-0">
           <div className="space-y-1">
             <div className="flex items-center justify-between gap-2">
-              <span className="text-[9px] text-emerald-500 font-bold uppercase truncate">{l.campaign_name}</span>
+              <span className="text-2xs text-emerald-500 font-bold uppercase truncate">{l.campaign_name}</span>
               <div className={cn(
-                "text-[10px] font-bold px-1.5 py-0.5 rounded border leading-none shrink-0",
+                "text-2xs font-bold px-1.5 py-0.5 rounded border leading-none shrink-0",
                 l.niceness_score === undefined || l.niceness_score === null
                   ? 'bg-bg-input text-text-muted border-border-subtle'
                   : l.niceness_score >= 70
@@ -106,12 +106,12 @@ export default function ListingDetailCard({
               {l.title}
             </h3>
 
-            <div className="text-[11px] font-bold text-brand-accent">
+            <div className="text-xs font-bold text-brand-accent">
               {l.price}
             </div>
           </div>
 
-          <div className="flex items-center justify-between text-[9px] text-text-muted mt-1">
+          <div className="flex items-center justify-between text-2xs text-text-muted mt-1">
             <span className="flex items-center gap-0.5 truncate max-w-[120px]">
               <MapPin className="w-2.5 h-2.5 shrink-0" />
               <span className="truncate">{l.location}</span>
@@ -162,14 +162,14 @@ export default function ListingDetailCard({
         <div className="flex flex-col gap-3">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
-              <span className="text-[10px] text-text-muted uppercase tracking-wider font-semibold block truncate">
+              <span className="text-2xs text-text-muted uppercase tracking-wider font-semibold block truncate">
                 {l.item_name}
               </span>
-              <span className="text-[10px] text-emerald-500 font-bold uppercase block">
+              <span className="text-2xs text-emerald-500 font-bold uppercase block">
                 {l.campaign_name}
               </span>
               {l.last_description_changed_at && (
-                <span className="text-[9px] text-text-muted font-mono block mt-1" title="Description last modified">
+                <span className="text-2xs text-text-muted font-mono block mt-1" title="Description last modified">
                   {t('listing.mod', {
                     date: new Date(l.last_description_changed_at).toLocaleString(lang === 'en' ? 'en-US' : 'de-DE', {
                       month: 'short',
@@ -257,17 +257,17 @@ export default function ListingDetailCard({
         {/* Specs Metadata Tags */}
         <div className="flex flex-wrap gap-1.5">
           {l.year && (
-            <span className="text-[10px] bg-bg-input text-text-muted border border-border-subtle px-2.5 py-1 rounded-lg font-semibold">
+            <span className="text-2xs bg-bg-input text-text-muted border border-border-subtle px-2.5 py-1 rounded-lg font-semibold">
               {t('listing.year', { year: l.year })}
             </span>
           )}
           {l.mileage && (
-            <span className="text-[10px] bg-bg-input text-text-muted border border-border-subtle px-2.5 py-1 rounded-lg font-semibold">
+            <span className="text-2xs bg-bg-input text-text-muted border border-border-subtle px-2.5 py-1 rounded-lg font-semibold">
               {l.mileage}
             </span>
           )}
           {l.cubic_capacity && (
-            <span className="text-[10px] bg-bg-input text-text-muted border border-border-subtle px-2.5 py-1 rounded-lg font-semibold font-mono">
+            <span className="text-2xs bg-bg-input text-text-muted border border-border-subtle px-2.5 py-1 rounded-lg font-semibold font-mono">
               {l.cubic_capacity}
             </span>
           )}
@@ -276,7 +276,7 @@ export default function ListingDetailCard({
           {l.llm_processed && l.criteria_evaluations && l.criteria_evaluations.map((evalItem, idx) => {
             if (evalItem.status === 'satisfied') {
               return (
-                <span key={`sat-${idx}`} className="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2.5 py-1 rounded-lg font-semibold flex items-center gap-1">
+                <span key={`sat-${idx}`} className="text-2xs bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2.5 py-1 rounded-lg font-semibold flex items-center gap-1">
                   <CheckCircle2 className="w-3 h-3 text-emerald-400" />
                   <span>{evalItem.name}</span>
                 </span>
@@ -284,7 +284,7 @@ export default function ListingDetailCard({
             }
             if (evalItem.status === 'violated') {
               return (
-                <span key={`viol-${idx}`} className="text-[10px] bg-rose-500/10 text-rose-400 border border-rose-500/20 px-2.5 py-1 rounded-lg font-semibold flex items-center gap-1">
+                <span key={`viol-${idx}`} className="text-2xs bg-rose-500/10 text-rose-400 border border-rose-500/20 px-2.5 py-1 rounded-lg font-semibold flex items-center gap-1">
                   <AlertTriangle className="w-3 h-3 text-rose-400" />
                   <span>{evalItem.name}</span>
                 </span>
@@ -295,7 +295,7 @@ export default function ListingDetailCard({
 
           {/* Needs Re-Eval tag */}
           {l.llm_processed && l.criteria_evaluations?.some(e => e.status === 'Needs Re-Evaluation') && (
-            <span className="text-[10px] bg-amber-500/15 text-amber-400 border border-amber-500/30 px-2.5 py-1 rounded-lg font-semibold flex items-center gap-1 animate-pulse">
+            <span className="text-2xs bg-amber-500/15 text-amber-400 border border-amber-500/30 px-2.5 py-1 rounded-lg font-semibold flex items-center gap-1 animate-pulse">
               <AlertTriangle className="w-3 h-3 text-amber-500" />
               <span>{t('listing.needsReEval')}</span>
             </span>
@@ -317,13 +317,13 @@ export default function ListingDetailCard({
           {/* Warnings Banner */}
           {l.highlights && l.highlights.some(h => h.sentiment === 'negative') && (
             <div className="bg-rose-500/10 border border-rose-500/25 p-4 rounded-xl space-y-2 animate-fadeIn">
-              <span className="text-[10px] font-bold text-rose-400 uppercase tracking-wider block font-mono flex items-center gap-1.5">
+              <span className="text-2xs font-bold text-rose-400 uppercase tracking-wider block font-mono flex items-center gap-1.5">
                 <AlertTriangle className="w-4 h-4 text-rose-400" />
                 {t('listing.highPriorityWarnings')}
               </span>
               <div className="flex flex-wrap gap-2">
                 {l.highlights.filter(h => h.sentiment === 'negative').map((h, idx) => (
-                  <span key={idx} title={`Evidence: "${h.evidence_quote}"`} className="text-[10px] bg-rose-500/20 text-rose-300 px-2.5 py-1 rounded-lg font-semibold border border-rose-500/20">
+                  <span key={idx} title={`Evidence: "${h.evidence_quote}"`} className="text-2xs bg-rose-500/20 text-rose-300 px-2.5 py-1 rounded-lg font-semibold border border-rose-500/20">
                     {h.label}
                   </span>
                 ))}
@@ -334,7 +334,7 @@ export default function ListingDetailCard({
           {/* Highlights */}
           {l.highlights && l.highlights.length > 0 && (
             <div className="bg-bg-input/60 p-4 rounded-xl border border-border-subtle space-y-3">
-              <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider block font-mono">
+              <span className="text-2xs font-bold text-indigo-400 uppercase tracking-wider block font-mono">
                 {t('listing.specialHighlights')}
               </span>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -349,16 +349,16 @@ export default function ListingDetailCard({
                     HighlightIcon = AlertCircle;
                   }
                   return (
-                    <div key={idx} className={cn("text-[10px] border p-3 rounded-xl flex flex-col gap-1.5", colorClasses)}>
+                    <div key={idx} className={cn("text-2xs border p-3 rounded-xl flex flex-col gap-1.5", colorClasses)}>
                       <div className="flex justify-between items-center font-bold">
                         <span className="flex items-center gap-1">
                           <HighlightIcon className="w-3.5 h-3.5 shrink-0" />
                           {h.label}
                         </span>
-                        <span className="text-[8px] uppercase opacity-75">{h.type} ({h.confidence})</span>
+                        <span className="text-2xs uppercase opacity-75">{h.type} ({h.confidence})</span>
                       </div>
                       {h.evidence_quote && (
-                        <p className="text-[9px] opacity-80 italic leading-normal border-t border-current/10 pt-1.5 mt-0.5">
+                        <p className="text-2xs opacity-80 italic leading-normal border-t border-current/10 pt-1.5 mt-0.5">
                           "{h.evidence_quote}"
                         </p>
                       )}
@@ -371,7 +371,7 @@ export default function ListingDetailCard({
 
           {/* AI Match Summary Text */}
           <div className="bg-bg-input/60 p-4 rounded-xl border border-border-subtle space-y-1.5">
-            <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider block font-mono">
+            <span className="text-2xs font-bold text-emerald-400 uppercase tracking-wider block font-mono">
               {t('listing.aiMatchSummary')}
             </span>
             <p className="text-text-secondary leading-relaxed font-sans">{l.summary}</p>
@@ -380,7 +380,7 @@ export default function ListingDetailCard({
           {/* Soft Dimensions Sliders */}
           {l.dimensions && (
             <div className="bg-bg-input/60 p-4 rounded-xl border border-border-subtle space-y-3">
-              <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider block font-mono">
+              <span className="text-2xs font-bold text-indigo-400 uppercase tracking-wider block font-mono">
                 {t('listing.softDimensions')}
               </span>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -398,7 +398,7 @@ export default function ListingDetailCard({
 
                   return (
                     <div key={key} className="space-y-1.5">
-                      <div className="flex justify-between items-center text-[10px] font-semibold text-text-secondary">
+                      <div className="flex justify-between items-center text-2xs font-semibold text-text-secondary">
                         <span>{label}</span>
                         <span className="font-bold font-mono">{score}/5</span>
                       </div>
@@ -409,7 +409,7 @@ export default function ListingDetailCard({
                         />
                       </div>
                       {reasoning && (
-                        <p className="text-[9px] text-text-muted font-sans leading-normal">{reasoning}</p>
+                        <p className="text-2xs text-text-muted font-sans leading-normal">{reasoning}</p>
                       )}
                     </div>
                   );
@@ -422,11 +422,11 @@ export default function ListingDetailCard({
           {l.reference_comparison && (
             <div className="bg-bg-input/60 p-4 rounded-xl border border-border-subtle space-y-2">
               <div className="flex justify-between items-center">
-                <span className="text-[10px] font-bold text-teal-400 uppercase tracking-wider block font-mono">
+                <span className="text-2xs font-bold text-teal-400 uppercase tracking-wider block font-mono">
                   {t('listing.referenceComparison')}
                 </span>
                 <span className={cn(
-                  "text-[10px] font-bold px-2 py-0.5 rounded-md border",
+                  "text-2xs font-bold px-2 py-0.5 rounded-md border",
                   l.reference_comparison.closer_to === 'good'
                     ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
                     : l.reference_comparison.closer_to === 'bad'
@@ -437,7 +437,7 @@ export default function ListingDetailCard({
                 </span>
               </div>
               {l.reference_comparison.reasoning && (
-                <p className="text-text-secondary font-sans text-[10px] leading-relaxed italic bg-bg-input/30 p-3 rounded-xl border border-border-subtle">
+                <p className="text-text-secondary font-sans text-2xs leading-relaxed italic bg-bg-input/30 p-3 rounded-xl border border-border-subtle">
                   "{l.reference_comparison.reasoning}"
                 </p>
               )}
@@ -447,7 +447,7 @@ export default function ListingDetailCard({
           {/* Unified Fields Table */}
           {l.field_evaluations && l.field_evaluations.length > 0 && (
             <div className="bg-bg-input/60 p-4 rounded-xl border border-border-subtle space-y-2">
-              <span className="text-[10px] font-bold text-teal-500 uppercase tracking-wider block font-mono">
+              <span className="text-2xs font-bold text-teal-500 uppercase tracking-wider block font-mono">
                 Extracted Fields & Preferences
               </span>
               <div className="divide-y divide-border-subtle">
@@ -475,24 +475,24 @@ export default function ListingDetailCard({
                       <div className="pr-3 space-y-1">
                         <div className="flex items-center gap-2">
                           <span className="font-bold text-text-secondary text-xs">{item.field.label}</span>
-                          <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-bg-input border border-border-subtle text-text-muted">
+                          <span className="text-2xs font-mono px-1.5 py-0.5 rounded bg-bg-input border border-border-subtle text-text-muted">
                             {item.field.type}
                             {item.field.unit ? ` (${item.field.unit})` : ''}
                           </span>
                         </div>
-                        <div className="text-[11px] font-semibold text-brand-accent">
+                        <div className="text-xs font-semibold text-brand-accent">
                           Extracted: <span className="font-mono">{valStr}</span>
                         </div>
                         {item.extracted.reasoning && (
-                          <span className="text-[10px] text-text-muted block leading-normal">{item.extracted.reasoning}</span>
+                          <span className="text-2xs text-text-muted block leading-normal">{item.extracted.reasoning}</span>
                         )}
                         {item.extracted.evidence_quote && (
-                          <span className="text-[9px] italic text-text-muted/80 block leading-normal">
+                          <span className="text-2xs italic text-text-muted/80 block leading-normal">
                             "{item.extracted.evidence_quote}"
                           </span>
                         )}
                       </div>
-                      <span className={cn("text-[9px] font-bold px-2 py-0.5 rounded border shrink-0", statusColor)}>
+                      <span className={cn("text-2xs font-bold px-2 py-0.5 rounded border shrink-0", statusColor)}>
                         {statusText}
                       </span>
                     </div>
@@ -505,7 +505,7 @@ export default function ListingDetailCard({
           {/* Checklist Table */}
           {(!l.field_evaluations || l.field_evaluations.length === 0) && (
             <div className="bg-bg-input/60 p-4 rounded-xl border border-border-subtle space-y-2">
-              <span className="text-[10px] font-bold text-teal-500 uppercase tracking-wider block font-mono">
+              <span className="text-2xs font-bold text-teal-500 uppercase tracking-wider block font-mono">
                 {t('dashboard.checklist')}
               </span>
               <div className="divide-y divide-border-subtle">
@@ -513,10 +513,10 @@ export default function ListingDetailCard({
                   <div key={idx} className="flex justify-between items-start py-2.5 font-sans">
                     <div className="pr-3">
                       <span className="font-bold text-text-secondary text-xs">{evalItem.name}</span>
-                      <span className="text-[10px] text-text-muted block leading-normal mt-0.5">{evalItem.reasoning}</span>
+                      <span className="text-2xs text-text-muted block leading-normal mt-0.5">{evalItem.reasoning}</span>
                     </div>
                     <span className={cn(
-                      "text-[9px] font-bold px-2 py-0.5 rounded border shrink-0",
+                      "text-2xs font-bold px-2 py-0.5 rounded border shrink-0",
                       evalItem.status === 'satisfied' 
                         ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' 
                         : evalItem.status === 'violated' 
@@ -540,7 +540,7 @@ export default function ListingDetailCard({
           {l.draft_message && (
             <div className="bg-bg-input/60 p-4 rounded-xl border border-border-subtle space-y-2">
               <div className="flex justify-between items-center border-b border-border-subtle pb-2">
-                <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider font-mono">
+                <span className="text-2xs font-bold text-emerald-400 uppercase tracking-wider font-mono">
                   {t('listing.outreachAssistant')}
                 </span>
                 <Button
@@ -548,7 +548,7 @@ export default function ListingDetailCard({
                   variant="mini-slate"
                   size="xs"
                   onClick={() => handleCopyOutreach(l.draft_message || '')}
-                  className="font-bold h-7 px-3 text-[10px]"
+                  className="font-bold h-7 px-3 text-2xs"
                 >
                   <span className="flex items-center gap-1.5">
                     {copiedOutreach ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
@@ -556,7 +556,7 @@ export default function ListingDetailCard({
                   </span>
                 </Button>
               </div>
-              <p className="text-text-secondary leading-relaxed font-sans italic text-[11px] bg-bg-input/65 p-3 rounded-lg border border-border-subtle select-all whitespace-pre-wrap">
+              <p className="text-text-secondary leading-relaxed font-sans italic text-xs bg-bg-input/65 p-3 rounded-lg border border-border-subtle select-all whitespace-pre-wrap">
                 {l.draft_message}
               </p>
             </div>

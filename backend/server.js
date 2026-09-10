@@ -428,8 +428,44 @@ app.post('/api/campaigns', async (req, res) => {
     }
     res.json({ success: true, id: campaignId });
   } catch (error) {
+    // `campaigns.name` is unique. Saying so is the difference between a user
+    // picking another name and a user retrying the same one.
+    if (error && String(error.message || '').includes('UNIQUE')) {
+      return res.status(409).json({
+        error: `A campaign called "${req.body.name}" already exists.`,
+        code: 'duplicate_name',
+      });
+    }
     console.error('Error saving campaign:', error);
     res.status(500).json({ error: 'Failed to save campaign' });
+  }
+});
+
+// API: Delete a campaign, and everything that only existed inside it.
+app.delete('/api/campaigns/:id', async (req, res) => {
+  try {
+    const campaignId = req.params.id;
+    const [campaign] = await query('SELECT name FROM campaigns WHERE id = ?', [
+      campaignId,
+    ]);
+    if (!campaign) {
+      return res.status(404).json({ error: 'Campaign not found' });
+    }
+
+    // Listings and searches cascade from the campaign, but the count is worth
+    // knowing before it happens, so the UI can say what is about to be lost.
+    const [counts] = await query(
+      `SELECT (SELECT COUNT(*) FROM searches WHERE campaign_id = ?) AS searches,
+              (SELECT COUNT(*) FROM listings l JOIN searches s ON l.search_id = s.id
+                WHERE s.campaign_id = ?) AS listings`,
+      [campaignId, campaignId]
+    );
+
+    await run('DELETE FROM campaigns WHERE id = ?', [campaignId]);
+    res.json({ success: true, name: campaign.name, ...counts });
+  } catch (error) {
+    console.error('Error deleting campaign:', error);
+    res.status(500).json({ error: 'Failed to delete campaign' });
   }
 });
 

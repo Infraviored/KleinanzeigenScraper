@@ -104,12 +104,12 @@ export default function CriteriaTuner({ editKsJson, onChange }: CriteriaTunerPro
             <span>🎛️</span>
             <span>{t('tuner.title')}</span>
           </h4>
-          <p className="text-[10px] text-slate-500 font-sans mt-0.5">
+          <p className="text-2xs text-slate-500 font-sans mt-0.5">
             {t('tuner.desc')}
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-[10px] bg-slate-800/50 text-slate-400 border border-slate-700/50 px-2.5 py-1 rounded-lg font-bold font-mono">
+          <span className="text-2xs bg-slate-800/50 text-slate-400 border border-slate-700/50 px-2.5 py-1 rounded-lg font-bold font-mono">
             {t('tuner.autoNormalized')}
           </span>
         </div>
@@ -137,7 +137,7 @@ export default function CriteriaTuner({ editKsJson, onChange }: CriteriaTunerPro
               <div className="flex justify-between items-start gap-2">
                 <div className="flex flex-col space-y-1">
                   <span className="text-xs font-bold text-slate-200 line-clamp-1">{c.description || c.id}</span>
-                  <span className="text-[9px] text-slate-500 font-semibold font-mono tracking-wider uppercase">{c.type || 'boolean'}</span>
+                  <span className="text-2xs text-slate-500 font-semibold font-mono tracking-wider uppercase">{c.type || 'boolean'}</span>
                 </div>
                 <span className={`text-xs font-mono font-bold px-2 py-0.5 rounded-lg border ${percentBadgeColor}`}>
                   {currentImportance}%
@@ -145,7 +145,7 @@ export default function CriteriaTuner({ editKsJson, onChange }: CriteriaTunerPro
               </div>
 
               <div className="flex items-center gap-2 pt-2 border-t border-slate-900/30">
-                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">{t('tuner.target')}</span>
+                <span className="text-2xs text-slate-500 font-bold uppercase tracking-wider">{t('tuner.target')}</span>
                 {typeof resolvedSatisfiedVal === 'boolean' ? (
                   <Button
                     type="button"
@@ -169,15 +169,15 @@ export default function CriteriaTuner({ editKsJson, onChange }: CriteriaTunerPro
                         const val = e.target.value === '' ? '' : Number(e.target.value);
                         handleUpdateSatisfiedIfValue(c.id, val);
                       }}
-                      className="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1 text-[10px] font-bold text-slate-200 font-mono w-16 text-center focus:outline-none focus:border-emerald-500"
+                      className="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1 text-2xs font-bold text-slate-200 font-mono w-16 text-center focus:outline-none focus:border-emerald-500"
                     />
-                    <span className="text-[9px] text-slate-500 font-bold uppercase">{t('tuner.ideal')}</span>
+                    <span className="text-2xs text-slate-500 font-bold uppercase">{t('tuner.ideal')}</span>
                   </div>
                 )}
               </div>
 
               <div className="flex flex-col space-y-1.5 pt-1">
-                <div className="flex justify-between text-[9px] text-slate-500 font-semibold font-sans px-0.5">
+                <div className="flex justify-between text-2xs text-slate-500 font-semibold font-sans px-0.5">
                   <span>{t('tuner.lowImportance')}</span>
                   <span>{t('tuner.criticalImportance')}</span>
                 </div>

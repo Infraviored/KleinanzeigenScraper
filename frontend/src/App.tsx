@@ -439,6 +439,39 @@ export default function App() {
     }
   }
 
+  const handleDeleteCampaign = useCallback(async (
+    campaignId: number,
+    name: string,
+    searchCount: number,
+    listingCount: number
+  ) => {
+    // Name what is about to be lost. "Are you sure?" tells nobody anything, and
+    // deleting a campaign takes its searches and everything crawled into them.
+    const contents = [
+      searchCount ? t('landing.deleteSearches', { count: searchCount }) : null,
+      listingCount ? t('landing.deleteListings', { count: listingCount }) : null,
+    ].filter(Boolean).join(', ');
+
+    const message = contents
+      ? t('landing.deleteConfirmWithContents', { name, contents })
+      : t('landing.deleteConfirm', { name });
+
+    if (!window.confirm(message)) return;
+
+    try {
+      const res = await fetch(`/api/campaigns/${campaignId}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        alert(data.error || t('landing.deleteFailed'));
+        return;
+      }
+      refreshAll();
+    } catch {
+      alert(t('common.connectionIssueFailed'));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handlePlanCorridor = useCallback(async () => {
     if (!newTargetUrl || !isValidKleinanzeigenUrl(newTargetUrl)) {
       setRouteError(t('common.routeNeedsUrl'));
@@ -717,15 +750,29 @@ export default function App() {
 
   const handleUpdateCampaignName = async (name: string) => {
     if (!currentCampaignId) return
+    const previous = campaigns.find(c => c.id === currentCampaignId)?.name
     setCampaigns(prev => prev.map(c => c.id === currentCampaignId ? { ...c, name } : c))
     try {
-      await fetch('/api/campaigns', {
+      const res = await fetch('/api/campaigns', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: currentCampaignId, name })
       })
-    } catch (err) {
-      console.error("Error updating campaign name:", err)
+      if (!res.ok) {
+        // The rename was shown before it was saved. Leaving it on screen after
+        // the save failed would tell the user the campaign is called something
+        // it is not — so put the old name back and say what happened.
+        const data = await res.json().catch(() => ({}))
+        setCampaigns(prev => prev.map(c =>
+          c.id === currentCampaignId && previous ? { ...c, name: previous } : c
+        ))
+        alert(data.error || t('landing.renameFailed'))
+      }
+    } catch {
+      setCampaigns(prev => prev.map(c =>
+        c.id === currentCampaignId && previous ? { ...c, name: previous } : c
+      ))
+      alert(t('common.connectionIssueFailed'))
     }
   }
 
@@ -932,7 +979,7 @@ export default function App() {
           <Card className="p-6 space-y-4">
             <form onSubmit={handleLoginSubmit} className="space-y-4">
               <div className="space-y-1.5">
-                <label className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">
+                <label className="text-2xs text-slate-500 font-bold uppercase tracking-wider block">
                   {t('auth.emailLabel')}
                 </label>
                 <Input
@@ -945,7 +992,7 @@ export default function App() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">
+                <label className="text-2xs text-slate-500 font-bold uppercase tracking-wider block">
                   {t('auth.passwordLabel')}
                 </label>
                 <Input
@@ -1002,7 +1049,7 @@ export default function App() {
           <div className="flex items-center gap-3 bg-bg-input border border-border-subtle rounded-xl py-1.5 px-3 shadow-inner">
             <div className="flex items-center space-x-1.5">
               <span className={cn("w-2 h-2 rounded-full", sessionEmail ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500')} />
-              <span className="text-[10px] font-semibold text-text-muted">
+              <span className="text-2xs font-semibold text-text-muted">
                 {sessionEmail ? t('common.sessionActive', { email: sessionEmail }) : t('common.sessionUnauth')}
               </span>
             </div>
@@ -1039,7 +1086,7 @@ export default function App() {
                 variant="badge"
                 size="sm"
                 onClick={() => setIsLangDropdownOpen(!isLangDropdownOpen)}
-                className="px-3 py-1.5 text-[10px] flex items-center justify-center gap-1.5 border-border-subtle"
+                className="px-3 py-1.5 text-2xs flex items-center justify-center gap-1.5 border-border-subtle"
               >
                 <Globe className="w-3.5 h-3.5 text-text-muted" />
                 <span>{lang.toUpperCase()}</span>
@@ -1078,7 +1125,7 @@ export default function App() {
               variant="badge"
               size="sm"
               onClick={handleLogout}
-              className="px-3 py-1.5 text-[10px] text-rose-400 border-rose-500/20 hover:bg-rose-500/10 flex items-center justify-center gap-1.5 text-center"
+              className="px-3 py-1.5 text-2xs text-rose-400 border-rose-500/20 hover:bg-rose-500/10 flex items-center justify-center gap-1.5 text-center"
             >
               <LogOut className="w-3.5 h-3.5" />
               <span>{t('auth.logout')}</span>
@@ -1111,7 +1158,7 @@ export default function App() {
             <div className="flex flex-col gap-3 bg-bg-input border border-border-subtle rounded-xl p-3 shadow-inner">
               <div className="flex items-center space-x-1.5">
                 <span className={cn("w-2 h-2 rounded-full", sessionEmail ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500')} />
-                <span className="text-[10px] font-semibold text-text-muted">
+                <span className="text-2xs font-semibold text-text-muted">
                   {sessionEmail ? t('common.sessionActive', { email: sessionEmail }) : t('common.sessionUnauth')}
                 </span>
               </div>
@@ -1143,7 +1190,7 @@ export default function App() {
 
             {/* Language toggle button for Mobile */}
             <div className="space-y-1">
-              <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider block font-mono">Language</span>
+              <span className="text-2xs font-bold text-text-muted uppercase tracking-wider block font-mono">Language</span>
               <Button
                 variant="badge"
                 size="sm"
@@ -1154,7 +1201,7 @@ export default function App() {
                   <Globe className="w-4.5 h-4.5 text-text-muted" />
                   <span>{lang === 'en' ? 'ENGLISH' : 'DEUTSCH'}</span>
                 </span>
-                <span className="text-[10px] text-brand-accent font-bold">Switch to {lang === 'en' ? 'DE' : 'EN'}</span>
+                <span className="text-2xs text-brand-accent font-bold">Switch to {lang === 'en' ? 'DE' : 'EN'}</span>
               </Button>
             </div>
 
@@ -1196,7 +1243,7 @@ export default function App() {
             <div className="flex justify-between items-center pb-4 border-b border-slate-800/80 w-full mb-6">
               <div>
                 <h1 className="text-xl font-bold text-slate-200">{t('landing.title')}</h1>
-                <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">{t('landing.subtitle')}</p>
+                <p className="text-2xs text-slate-500 font-semibold uppercase tracking-wider">{t('landing.subtitle')}</p>
               </div>
             </div>
 
@@ -1237,7 +1284,7 @@ export default function App() {
                     ) : (
                       <div className="w-full aspect-[21/9] rounded-xl relative border border-slate-800/80 bg-gradient-to-br from-indigo-500/10 via-slate-950 to-emerald-500/5 flex items-center justify-center overflow-hidden">
                         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-500/5 via-transparent to-transparent" />
-                        <span className="text-[9px] font-bold text-slate-600 uppercase tracking-widest font-mono">{t('landing.noListings')}</span>
+                        <span className="text-2xs font-bold text-slate-600 uppercase tracking-widest font-mono">{t('landing.noListings')}</span>
                       </div>
                     )}
 
@@ -1246,25 +1293,44 @@ export default function App() {
                         <div className="flex justify-between items-start">
                           <div>
                             <h3 className="text-sm font-extrabold text-slate-200 group-hover:text-emerald-400 transition-colors tracking-tight line-clamp-1">{c.name}</h3>
-                            <p className="text-[9px] text-slate-500 font-semibold uppercase tracking-wider mt-0.5">{t('landing.profileType')}</p>
+                            <p className="text-2xs text-slate-500 font-semibold uppercase tracking-wider mt-0.5">{t('landing.profileType')}</p>
                           </div>
 
-                          <Button
-                            variant="icon"
-                            size="xs"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              const firstTarget = searches.find(s => s.campaign_id === c.id);
-                              navigate('edit', c.id, firstTarget?.id || null);
-                            }}
-                            title={t('landing.configureTooltip')}
-                            className="p-1.5"
-                          >
-                            <Settings className="w-4 h-4 transition-transform duration-500 hover:rotate-90 text-text-muted hover:text-brand-accent" />
-                          </Button>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <Button
+                              variant="icon"
+                              size="xs"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const firstTarget = searches.find(s => s.campaign_id === c.id);
+                                navigate('edit', c.id, firstTarget?.id || null);
+                              }}
+                              title={t('landing.configureTooltip')}
+                              className="p-1.5"
+                            >
+                              <Settings className="w-5 h-5 transition-transform duration-500 hover:rotate-90 text-text-muted hover:text-brand-accent" />
+                            </Button>
+                            <Button
+                              variant="icon"
+                              size="xs"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteCampaign(c.id, c.name, campaignSearches.length, campaignListings.length);
+                              }}
+                              title={t('landing.deleteTooltip')}
+                              className="p-1.5"
+                            >
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                                   strokeLinecap="round" strokeLinejoin="round"
+                                   className="w-5 h-5 text-text-muted hover:text-rose-400 transition-colors"
+                                   aria-hidden="true">
+                                <path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                              </svg>
+                            </Button>
+                          </div>
                         </div>
 
-                        <div className="flex flex-wrap gap-1.5 text-[9px] font-semibold">
+                        <div className="flex flex-wrap gap-1.5 text-2xs font-semibold">
                           <span className="bg-slate-950/60 text-slate-400 border border-slate-855 px-2 py-0.5 rounded-md">
                             {campaignSearches.length} {t('landing.targets')}
                           </span>
@@ -1279,7 +1345,7 @@ export default function App() {
                         </div>
                       </div>
 
-                      <div className="border-t border-slate-855 mt-4 pt-3 flex justify-between items-center text-[11px] text-slate-400 font-bold">
+                      <div className="border-t border-slate-855 mt-4 pt-3 flex justify-between items-center text-xs text-slate-400 font-bold">
                         <span className="group-hover:text-emerald-400 transition-colors flex items-center space-x-1">
                           <span>{t('landing.openDashboard')}</span>
                           <span className="transform group-hover:translate-x-1 transition-transform">&rarr;</span>
@@ -1301,7 +1367,7 @@ export default function App() {
                 </div>
                 <div className="text-center">
                   <h3 className="text-sm font-bold text-slate-300 group-hover:text-emerald-400 transition-colors">{t('landing.createCampaign')}</h3>
-                  <p className="text-[10px] text-slate-500 mt-1 max-w-[200px]">{t('landing.createSubtitle')}</p>
+                  <p className="text-2xs text-slate-500 mt-1 max-w-[200px]">{t('landing.createSubtitle')}</p>
                 </div>
               </Card>
             </div>
@@ -1579,7 +1645,7 @@ export default function App() {
                       </Button>
                     </div>
                   )}
-                  <p className="text-[9px] text-slate-500 font-semibold uppercase tracking-wider mt-0.5">{t('common.targetsAndGuidelines')}</p>
+                  <p className="text-2xs text-slate-500 font-semibold uppercase tracking-wider mt-0.5">{t('common.targetsAndGuidelines')}</p>
                 </div>
               </div>
             </div>
@@ -1589,14 +1655,14 @@ export default function App() {
                 <div className="absolute -right-16 -top-16 w-36 h-36 rounded-full bg-emerald-500/5 blur-3xl pointer-events-none" />
                 
                 <div className="space-y-1.5 text-center">
-                  <span className="mx-auto text-[10px] bg-emerald-500/10 text-emerald-400 font-bold px-2.5 py-0.5 rounded uppercase tracking-wider w-fit block">{t('common.campaignTargetConfig')}</span>
+                  <span className="mx-auto text-2xs bg-emerald-500/10 text-emerald-400 font-bold px-2.5 py-0.5 rounded uppercase tracking-wider w-fit block">{t('common.campaignTargetConfig')}</span>
                   <h2 className="text-lg font-bold text-slate-200 font-sans tracking-tight">{t('common.pasteSearchUrl')}</h2>
                   <p className="text-xs text-slate-400 leading-relaxed font-semibold">{t('wizard.targetsDescription')}</p>
                 </div>
 
                 <div className="space-y-4 pt-2">
                   <div className="space-y-1.5">
-                    <label className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">{t('common.pasteSearchUrl')}</label>
+                    <label className="text-2xs text-slate-500 font-bold uppercase tracking-wider block">{t('common.pasteSearchUrl')}</label>
                     <Input
                       type="text"
                       value={newTargetUrl}
@@ -1634,7 +1700,7 @@ export default function App() {
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div className="space-y-1.5">
-                          <label htmlFor="route-from" className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">{t('common.routeFrom')}</label>
+                          <label htmlFor="route-from" className="text-2xs text-slate-500 font-bold uppercase tracking-wider block">{t('common.routeFrom')}</label>
                           <Input
                             id="route-from"
                             type="text"
@@ -1644,7 +1710,7 @@ export default function App() {
                           />
                         </div>
                         <div className="space-y-1.5">
-                          <label htmlFor="route-to" className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">{t('common.routeTo')}</label>
+                          <label htmlFor="route-to" className="text-2xs text-slate-500 font-bold uppercase tracking-wider block">{t('common.routeTo')}</label>
                           <Input
                             id="route-to"
                             type="text"
@@ -1657,7 +1723,7 @@ export default function App() {
 
                       <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1.5">
-                          <label htmlFor="route-corridor" className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">
+                          <label htmlFor="route-corridor" className="text-2xs text-slate-500 font-bold uppercase tracking-wider block">
                             {t('common.routeCorridor')}: <span className="text-slate-300 font-mono">{routeCorridorKm} km</span>
                           </label>
                           <input
@@ -1672,7 +1738,7 @@ export default function App() {
                           />
                         </div>
                         <div className="space-y-1.5">
-                          <label htmlFor="route-radius" className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">
+                          <label htmlFor="route-radius" className="text-2xs text-slate-500 font-bold uppercase tracking-wider block">
                             {t('common.routeRadius')}: <span className="text-slate-300 font-mono">{routeRadiusKm} km</span>
                           </label>
                           <input
@@ -1724,14 +1790,14 @@ export default function App() {
                         {previewLoading && (
                           <div className="flex items-center space-x-1">
                             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-                            <span className="text-[10px] text-emerald-400 font-mono">{t('common.processing')}</span>
+                            <span className="text-2xs text-emerald-400 font-mono">{t('common.processing')}</span>
                           </div>
                         )}
                       </div>
 
                       {/* URL Validity indicator */}
                       <div className="flex items-center space-x-2 text-xs">
-                        <span className="text-[10px] font-mono w-24 text-slate-500">{t('common.urlStatus')}</span>
+                        <span className="text-2xs font-mono w-24 text-slate-500">{t('common.urlStatus')}</span>
                         {isValidKleinanzeigenUrl(newTargetUrl) ? (
                           <span className="text-emerald-400 font-semibold">{t('common.validUrl')}</span>
                         ) : (
@@ -1742,7 +1808,7 @@ export default function App() {
                       {/* Suggested Title */}
                       {isValidKleinanzeigenUrl(newTargetUrl) && (
                         <div className="flex items-center space-x-2 text-xs">
-                          <span className="text-[10px] font-mono w-24 text-slate-500">{t('common.suggestedName')}</span>
+                          <span className="text-2xs font-mono w-24 text-slate-500">{t('common.suggestedName')}</span>
                           <span className="text-slate-200 font-bold bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
                             {suggestTitleFromUrl(newTargetUrl) || t('common.extractingTitle')}
                           </span>
@@ -1751,7 +1817,7 @@ export default function App() {
 
                       {/* Diagnostic Logs */}
                       {previewLoading && (
-                        <div className="text-[11px] text-slate-400 space-y-1 font-mono pt-1">
+                        <div className="text-xs text-slate-400 space-y-1 font-mono pt-1">
                           <div className="flex items-center space-x-1.5">
                             <span className="text-emerald-400">&gt;</span>
                             <span>{t('common.diagnosticLog1')}</span>
@@ -1845,7 +1911,7 @@ export default function App() {
 
               <div className="space-y-4 pt-2">
                 <div className="space-y-1.5">
-                  <label className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">{t('wizard.campaignNameLabel')}</label>
+                  <label className="text-2xs text-slate-500 font-bold uppercase tracking-wider block">{t('wizard.campaignNameLabel')}</label>
                   <Input
                     type="text"
                     value={newCampaignName}
