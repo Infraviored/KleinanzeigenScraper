@@ -1,5 +1,10 @@
-selenium==4.15.2
-beautifulsoup4==4.12.2
+# Runtime dependencies
+# Pinned to the versions verified working in this project's venv.
+selenium==4.47.0
+webdriver-manager==4.1.2
+beautifulsoup4==4.15.0
+requests==2.34.2
 openai>=1.50.0
-argparse==1.4.0
-pickle-mixin==1.0.2 
+
+# Test dependencies
+pytest==9.1.1

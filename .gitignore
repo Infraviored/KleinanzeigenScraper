@@ -5,8 +5,10 @@ config.py
 scripts/test_single.py
 
 # Python virtual environment
+.venv
 .venv/
 venv/
+venv.broken-*/
 env/
 .env/
 

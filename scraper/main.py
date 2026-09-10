@@ -1,4 +1,5 @@
 import os
+import sys
 import json
 import sqlite3
 import logging
@@ -53,6 +54,103 @@ def get_db_connection():
     return sqlite3.connect(DB_PATH)
 
 
+def annotate_route_detours(conn, campaign_id=None):
+    """Computes detours for every route search that has listings waiting.
+
+    Deliberately forgiving: a route whose routing fails is logged and the rest
+    still run. The detour is an enrichment, and an enrichment must never be able
+    to fail a scrape that already succeeded.
+    """
+    try:
+        import route_pipeline
+        import route_store
+
+        route_store.ensure_schema(conn)
+        if campaign_id is None:
+            rows = conn.execute("SELECT id, name FROM route_searches").fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT id, name FROM route_searches WHERE campaign_id = ?",
+                (campaign_id,),
+            ).fetchall()
+    except Exception as exc:
+        logger.info("No route searches to annotate (%s).", exc)
+        return
+
+    for row in rows:
+        route_id, name = row[0], row[1]
+        try:
+            summary = route_pipeline.annotate(conn, route_id)
+            if summary["considered"]:
+                logger.info("Route %s (%s): %s", route_id, name, summary)
+        except Exception as exc:
+            logger.warning(
+                "Could not compute detours for route %s (%s): %s. Listings are "
+                "stored; the next run will try again.",
+                route_id,
+                name,
+                exc,
+            )
+
+
+def run_route_mode(args):
+    """Plans a route corridor, or computes detours for one already planned.
+
+    Creation and annotation are separate commands because they belong to
+    different moments: a corridor is planned once, when a buyer says where they
+    are driving, and its circles are then scraped like any other search. Detours
+    are computed afterwards, so the routing service never sits in the scraper's
+    path — if it is unreachable, listings still arrive, only without a detour.
+    """
+    import route_pipeline
+
+    conn = get_db_connection()
+
+    if args.mode == "route-create":
+        if not args.origin or not args.destination:
+            logger.error("route-create needs --from and --to")
+            return
+        if not args.urls:
+            logger.error(
+                "route-create needs --urls with one search URL to re-aim along "
+                "the route, e.g. a Kleinanzeigen search ending in k0l...r..."
+            )
+            return
+
+        route_id, plan = route_pipeline.create(
+            conn,
+            base_url=args.urls[0],
+            origin=args.origin,
+            destination=args.destination,
+            radius_km=args.radius_km,
+            half_width_km=args.corridor_km,
+            name=args.route_name,
+            campaign_id=args.campaign_id,
+            knowledge_set_id=args.knowledge_set_id,
+        )
+        print(f"__ROUTE_ID__:{route_id}")
+        for index, circle in enumerate(plan.circles, 1):
+            print(f"  {index}. r{circle.radius_km:<3} {circle.label}")
+            print(f"     {circle.url}")
+        if plan.unresolved:
+            logger.warning(
+                "No location id for these postal codes, so their circles were "
+                "skipped: %s",
+                ", ".join(plan.unresolved),
+            )
+        return
+
+    if not args.route_id:
+        logger.error("route-annotate needs --route-id")
+        return
+
+    summary = route_pipeline.annotate(conn, args.route_id)
+    print(
+        f"__ROUTE_ANNOTATED__:{summary['routed']}/{summary['considered']} "
+        f"(too far: {summary['too_far']}, unplaceable: {summary['unplaceable']})"
+    )
+
+
 def main():
     """Main entry point that acts as a wrapper for different functionalities"""
     parser = argparse.ArgumentParser(
@@ -60,9 +158,20 @@ def main():
     )
     parser.add_argument(
         "--mode",
-        choices=["scrape", "process", "both", "preview", "update-all"],
+        choices=[
+            "scrape",
+            "process",
+            "both",
+            "preview",
+            "update-all",
+            "route-create",
+            "route-annotate",
+        ],
         default="both",
-        help="Operation mode: scrape, process, both, preview, or update-all",
+        help=(
+            "Operation mode: scrape, process, both, preview, update-all, "
+            "route-create, or route-annotate"
+        ),
     )
     parser.add_argument(
         "--urls",
@@ -95,7 +204,58 @@ def main():
         help="Campaign ID to filter searches, description updates, and AI matching",
     )
 
+    # --- route search --------------------------------------------------
+    route = parser.add_argument_group(
+        "route search",
+        "Search along a route instead of around a point. A corridor is covered "
+        "by the fewest circles that reach its edges, each registered as an "
+        "ordinary search; detours are computed afterwards with route-annotate.",
+    )
+    route.add_argument(
+        "--from",
+        dest="origin",
+        help="Where the trip starts: a postal code, or 'Ort, Bundesland'",
+    )
+    route.add_argument(
+        "--to",
+        dest="destination",
+        help="Where it ends: a postal code, or 'Ort, Bundesland'",
+    )
+    route.add_argument(
+        "--radius-km",
+        type=float,
+        default=30.0,
+        help="Search radius per circle (default: 30)",
+    )
+    route.add_argument(
+        "--corridor-km",
+        type=float,
+        default=15.0,
+        help="How far off the route to search, each side (default: 15)",
+    )
+    route.add_argument(
+        "--knowledge-set-id",
+        type=int,
+        default=None,
+        help="Knowledge set the corridor's searches are scored against",
+    )
+    route.add_argument(
+        "--route-id",
+        type=int,
+        default=None,
+        help="Route search to annotate with detours",
+    )
+    route.add_argument(
+        "--route-name",
+        default=None,
+        help="Label for this route search",
+    )
+
     args = parser.parse_args()
+
+    if args.mode in ("route-create", "route-annotate"):
+        run_route_mode(args)
+        return
 
     if args.mode == "preview":
         if not args.urls or len(args.urls) == 0:
@@ -227,8 +387,43 @@ def main():
         except Exception as e:
             logger.error(f"Error during detailed description harvesting: {str(e)}")
 
+        # 1.6. Detours for anything collected along a route.
+        #
+        # After the scrape, never during it. A listing's detour is worth having
+        # but is never worth losing a listing over, so a routing service that is
+        # slow or down must not be able to reach the fetching loop. Failures here
+        # leave listings in place without a detour; the next run picks them up.
+        annotate_route_detours(conn, args.campaign_id)
+
     # 2. Processing Mode
     if args.mode in ["process", "both"]:
+        # Playbook-backed categories run through the decoupled pipeline first:
+        # it extracts one fact sheet per listing and scores every buyer against
+        # it without further model calls. Listings it handles are marked
+        # processed, so the legacy worker below only picks up the remainder.
+        try:
+            import pipeline
+
+            outcomes = pipeline.run(conn, pipeline.default_model_caller())
+            stats = pipeline.summarise(outcomes)
+            if stats["processed"]:
+                logger.info(
+                    "Pipeline: %d listing(s) processed, %d model call(s), "
+                    "%d served from fact-sheet cache, %d identity/identities resolved.",
+                    stats["processed"],
+                    stats["model_calls"],
+                    stats["from_cache"],
+                    stats["identities_resolved"],
+                )
+            for reason, count in stats["skip_reasons"].items():
+                logger.info(
+                    "Pipeline left %d listing(s) to the legacy worker (%s).",
+                    count,
+                    reason,
+                )
+        except Exception as e:
+            logger.error(f"Playbook pipeline failed, falling back entirely: {str(e)}")
+
         logger.info("Starting processing mode via agent_worker...")
         conn.close()  # Close connection to prevent sqlite locks during process spawn
 
@@ -239,7 +434,10 @@ def main():
             worker_path = os.path.join(
                 os.path.dirname(os.path.abspath(__file__)), "agent_worker.py"
             )
-            cmd = ["python3", worker_path, "process"]
+            # sys.executable, not a bare "python3": the worker's dependencies
+            # (openai, ...) live in this project's venv, and a bare name resolves
+            # against PATH, which lands on the system interpreter instead.
+            cmd = [sys.executable, worker_path, "process"]
             if args.listing_id:
                 cmd.append(args.listing_id)
             if args.campaign_id is not None:

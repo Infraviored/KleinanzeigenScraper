@@ -6,9 +6,10 @@ import logging
 import re
 import sqlite3
 import datetime
-from urllib.parse import urljoin
 import requests
 from bs4 import BeautifulSoup
+
+import result_list
 
 # For the legacy interactive Selenium login route:
 from selenium import webdriver
@@ -33,6 +34,23 @@ HEADERS = {
     "Connection": "keep-alive",
     "Upgrade-Insecure-Requests": "1",
 }
+
+
+def fetch(url, caller=None, timeout=10):
+    """GETs a page and decodes it as UTF-8.
+
+    The decoding is not incidental. Kleinanzeigen answers with a bare
+    `Content-Type: text/html` and no charset, and RFC 2616 tells an HTTP client to
+    assume ISO-8859-1 in that case — so `response.text` silently mangles every
+    umlaut and the euro sign, turning "Weiß" into "WeiÃ" and hiding "60 € VB" from
+    anything looking for a price. The pages are UTF-8; requests' own
+    `apparent_encoding` agrees. Setting it explicitly is the fix, and it belongs
+    here so no call site can forget it.
+    """
+    caller = caller if caller is not None else requests
+    response = caller.get(url, headers=HEADERS, timeout=timeout)
+    response.encoding = "utf-8"
+    return response
 
 
 def update_progress(phase, current, total, status):
@@ -63,7 +81,7 @@ def parse_listing_details_requests(url, session=None):
     """Retrieve and parse detailed specifications, description, and images using direct requests"""
     try:
         caller = session if session is not None else requests
-        response = caller.get(url, headers=HEADERS, timeout=10)
+        response = fetch(url, caller=caller)
         if response.status_code != 200:
             logger.warning(
                 f"Failed to fetch listing details for {url}. Status: {response.status_code}"
@@ -210,17 +228,16 @@ def scrape_listings_requests(urls, output_file, max_listings=None):
                 break
 
             try:
-                response = requests.get(current_url, headers=HEADERS, timeout=10)
+                response = fetch(current_url)
                 if response.status_code != 200:
                     logger.error(
                         f"Failed to fetch page {current_url}. Status: {response.status_code}"
                     )
                     continue
 
-                soup = BeautifulSoup(response.text, "html.parser")
                 scraped_count = 0
 
-                for item in soup.select("ul#srchrslt-adtable li.ad-listitem"):
+                for parsed in result_list.parse(response.text):
                     # Check limit inside loop too
                     if (
                         max_listings is not None
@@ -228,62 +245,17 @@ def scrape_listings_requests(urls, output_file, max_listings=None):
                     ):
                         break
 
-                    try:
-                        article_elem = item.select_one("article.aditem")
-                        if not article_elem or not article_elem.has_attr("data-adid"):
-                            continue
-                        listing_id = article_elem["data-adid"]
-
-                        # Skip if this listing ID already exists
-                        if listing_id in existing_ids:
-                            continue
-
-                        title_elem = item.select_one("h2 a")
-                        if not title_elem or not title_elem.has_attr("href"):
-                            continue
-
-                        title = title_elem.get_text(strip=True)
-                        listing_url = urljoin(
-                            "https://www.kleinanzeigen.de", title_elem["href"]
-                        )
-
-                        price_elem = item.select_one(
-                            "p.aditem-main--middle--price-shipping--price"
-                        )
-                        price = price_elem.get_text(strip=True) if price_elem else ""
-
-                        desc_elem = item.select_one(
-                            "p.aditem-main--middle--description"
-                        )
-                        short_description = (
-                            desc_elem.get_text(strip=True) if desc_elem else ""
-                        )
-
-                        location_elem = item.select_one(".aditem-main--top--left")
-                        location = (
-                            location_elem.get_text(strip=True) if location_elem else ""
-                        )
-
-                        listing = {
-                            "id": listing_id,
-                            "title": title,
-                            "price": price,
-                            "short_description": short_description,
-                            "location": location,
-                            "url": listing_url,
-                            "detailed_description": "",
-                            "llm_processed": False,
-                        }
-
-                        # Append and save intermediate
-                        existing_listings.append(listing)
-                        existing_ids.add(listing_id)
-                        all_scraped_listings.append(listing)
-                        scraped_count += 1
-
-                    except Exception as e:
-                        logger.error(f"Error scraping single listing: {str(e)}")
+                    listing_id = parsed["id"]
+                    if listing_id in existing_ids:
                         continue
+
+                    listing = result_list.as_db_listing(parsed)
+
+                    # Append and save intermediate
+                    existing_listings.append(listing)
+                    existing_ids.add(listing_id)
+                    all_scraped_listings.append(listing)
+                    scraped_count += 1
 
                 if output_file:
                     with open(output_file, "w", encoding="utf-8") as f:
@@ -315,16 +287,18 @@ def scrape_listings_requests(urls, output_file, max_listings=None):
 def preview_url_listings_count(url):
     """Fetch first page result count quickly using fast requests GET"""
     try:
-        response = requests.get(url, headers=HEADERS, timeout=10)
+        response = fetch(url)
         if response.status_code != 200:
             print(
                 f"__PREVIEW_ERROR__:Failed to fetch search page, status: {response.status_code}"
             )
             return 0
 
-        soup = BeautifulSoup(response.text, "html.parser")
-        items = soup.select("ul#srchrslt-adtable li.ad-listitem")
-        count = len(items)
+        # The site reports the full total, which is what a preview should show;
+        # the page itself only ever carries the first page of it.
+        count = result_list.total_results(response.text)
+        if count is None:
+            count = len(result_list.parse(response.text))
         print(f"__PREVIEW_COUNT__:{count}")
         return count
     except Exception as e:
@@ -792,7 +766,6 @@ def scrape_listings_selenium(urls, output_file, max_listings=None):
                     logger.error("[Selenium] Timeout waiting for page to load")
                     continue
 
-                soup = BeautifulSoup(driver.page_source, "html.parser")
                 existing_listings = []
                 existing_ids = set()
                 if output_file and os.path.exists(output_file):
@@ -806,68 +779,28 @@ def scrape_listings_selenium(urls, output_file, max_listings=None):
                         pass
 
                 scraped_count = 0
-                for item in soup.select("ul#srchrslt-adtable li.ad-listitem"):
+                for parsed in result_list.parse(driver.page_source):
                     if (
                         max_listings is not None
                         and len(all_scraped_listings) >= max_listings
                     ):
                         break
-                    try:
-                        article_elem = item.select_one("article.aditem")
-                        if not article_elem or not article_elem.has_attr("data-adid"):
-                            continue
-                        listing_id = article_elem["data-adid"]
 
-                        if listing_id in existing_ids:
-                            continue
-
-                        title_elem = item.select_one("h2 a")
-                        title = title_elem.get_text(strip=True) if title_elem else ""
-                        listing_url = (
-                            "https://www.kleinanzeigen.de" + title_elem["href"]
-                            if title_elem
-                            else ""
-                        )
-
-                        price_elem = item.select_one(
-                            "p.aditem-main--middle--price-shipping--price"
-                        )
-                        price = price_elem.get_text(strip=True) if price_elem else ""
-
-                        desc_elem = item.select_one(
-                            "p.aditem-main--middle--description"
-                        )
-                        short_description = (
-                            desc_elem.get_text(strip=True) if desc_elem else ""
-                        )
-
-                        location_elem = item.select_one(".aditem-main--top--left")
-                        location = (
-                            location_elem.get_text(strip=True) if location_elem else ""
-                        )
-
-                        listing = {
-                            "id": listing_id,
-                            "title": title,
-                            "price": price,
-                            "short_description": short_description,
-                            "location": location,
-                            "url": listing_url,
-                            "detailed_description": "",
-                            "llm_processed": False,
-                        }
-
-                        existing_listings.append(listing)
-                        all_scraped_listings.append(listing)
-                        scraped_count += 1
-
-                        if output_file:
-                            with open(output_file, "w", encoding="utf-8") as f:
-                                json.dump(
-                                    existing_listings, f, ensure_ascii=False, indent=4
-                                )
-                    except Exception:
+                    listing_id = parsed["id"]
+                    if listing_id in existing_ids:
                         continue
+
+                    listing = result_list.as_db_listing(parsed)
+                    existing_listings.append(listing)
+                    existing_ids.add(listing_id)
+                    all_scraped_listings.append(listing)
+                    scraped_count += 1
+
+                    if output_file:
+                        with open(output_file, "w", encoding="utf-8") as f:
+                            json.dump(
+                                existing_listings, f, ensure_ascii=False, indent=4
+                            )
 
                 logger.info(
                     f"[Selenium] Scraped {scraped_count} listings from {current_url}"

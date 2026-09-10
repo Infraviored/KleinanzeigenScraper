@@ -444,36 +444,97 @@ export default function ListingDetailCard({
             </div>
           )}
 
-          {/* Checklist Table */}
-          <div className="bg-bg-input/60 p-4 rounded-xl border border-border-subtle space-y-2">
-            <span className="text-[10px] font-bold text-teal-500 uppercase tracking-wider block font-mono">
-              {t('dashboard.checklist')}
-            </span>
-            <div className="divide-y divide-border-subtle">
-              {l.criteria_evaluations && l.criteria_evaluations.map((evalItem, idx) => (
-                <div key={idx} className="flex justify-between items-start py-2.5 font-sans">
-                  <div className="pr-3">
-                    <span className="font-bold text-text-secondary text-xs">{evalItem.name}</span>
-                    <span className="text-[10px] text-text-muted block leading-normal mt-0.5">{evalItem.reasoning}</span>
-                  </div>
-                  <span className={cn(
-                    "text-[9px] font-bold px-2 py-0.5 rounded border shrink-0",
-                    evalItem.status === 'satisfied' 
-                      ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' 
-                      : evalItem.status === 'violated' 
-                      ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' 
-                      : 'bg-bg-surface text-text-muted border-border-subtle'
-                  )}>
-                    {evalItem.status === 'satisfied' 
-                      ? t('listing.satisfied').toUpperCase() 
-                      : evalItem.status === 'violated' 
-                      ? t('listing.violated').toUpperCase() 
-                      : 'NEUTRAL'}
-                  </span>
-                </div>
-              ))}
+          {/* Unified Fields Table */}
+          {l.field_evaluations && l.field_evaluations.length > 0 && (
+            <div className="bg-bg-input/60 p-4 rounded-xl border border-border-subtle space-y-2">
+              <span className="text-[10px] font-bold text-teal-500 uppercase tracking-wider block font-mono">
+                Extracted Fields & Preferences
+              </span>
+              <div className="divide-y divide-border-subtle">
+                {l.field_evaluations.map((item, idx) => {
+                  const valStr = item.extracted.value === null || item.extracted.value === undefined
+                    ? 'Not specified'
+                    : String(item.extracted.value);
+
+                  let statusColor = 'bg-bg-surface text-text-muted border-border-subtle';
+                  let statusText = item.status.toUpperCase();
+
+                  if (item.status === 'satisfied') {
+                    statusColor = 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
+                  } else if (item.status === 'partial') {
+                    statusColor = 'bg-amber-500/10 text-amber-400 border-amber-500/20';
+                  } else if (item.status === 'violated') {
+                    statusColor = 'bg-rose-500/10 text-rose-400 border-rose-500/20';
+                  } else if (item.status === 'missing_critical') {
+                    statusColor = 'bg-rose-500/20 text-rose-300 border-rose-500/30 font-extrabold animate-pulse';
+                    statusText = 'CRITICAL GAP';
+                  }
+
+                  return (
+                    <div key={idx} className="flex justify-between items-start py-2.5 font-sans">
+                      <div className="pr-3 space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-text-secondary text-xs">{item.field.label}</span>
+                          <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-bg-input border border-border-subtle text-text-muted">
+                            {item.field.type}
+                            {item.field.unit ? ` (${item.field.unit})` : ''}
+                          </span>
+                        </div>
+                        <div className="text-[11px] font-semibold text-brand-accent">
+                          Extracted: <span className="font-mono">{valStr}</span>
+                        </div>
+                        {item.extracted.reasoning && (
+                          <span className="text-[10px] text-text-muted block leading-normal">{item.extracted.reasoning}</span>
+                        )}
+                        {item.extracted.evidence_quote && (
+                          <span className="text-[9px] italic text-text-muted/80 block leading-normal">
+                            "{item.extracted.evidence_quote}"
+                          </span>
+                        )}
+                      </div>
+                      <span className={cn("text-[9px] font-bold px-2 py-0.5 rounded border shrink-0", statusColor)}>
+                        {statusText}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-          </div>
+          )}
+
+          {/* Checklist Table */}
+          {(!l.field_evaluations || l.field_evaluations.length === 0) && (
+            <div className="bg-bg-input/60 p-4 rounded-xl border border-border-subtle space-y-2">
+              <span className="text-[10px] font-bold text-teal-500 uppercase tracking-wider block font-mono">
+                {t('dashboard.checklist')}
+              </span>
+              <div className="divide-y divide-border-subtle">
+                {l.criteria_evaluations && l.criteria_evaluations.map((evalItem, idx) => (
+                  <div key={idx} className="flex justify-between items-start py-2.5 font-sans">
+                    <div className="pr-3">
+                      <span className="font-bold text-text-secondary text-xs">{evalItem.name}</span>
+                      <span className="text-[10px] text-text-muted block leading-normal mt-0.5">{evalItem.reasoning}</span>
+                    </div>
+                    <span className={cn(
+                      "text-[9px] font-bold px-2 py-0.5 rounded border shrink-0",
+                      evalItem.status === 'satisfied' 
+                        ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' 
+                        : evalItem.status === 'violated' 
+                        ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' 
+                        : 'bg-bg-surface text-text-muted border-border-subtle'
+                    )}>
+                      {evalItem.status === 'satisfied' 
+                        ? t('listing.satisfied').toUpperCase() 
+                        : evalItem.status === 'violated' 
+                        ? t('listing.violated').toUpperCase() 
+                        : 'NEUTRAL'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
 
           {/* Outreach Message */}
           {l.draft_message && (

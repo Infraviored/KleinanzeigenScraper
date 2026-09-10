@@ -8,6 +8,74 @@ _INTERNAL_PROMPT_PATH = os.path.join(
 )
 
 
+_LEGACY_CRITERIA_VALUE_SPEC = """- Criteria:
+  - yes = explicitly supported in the listing
+  - no = explicitly contradicted OR explicit warning present
+  - unknown = not clearly stated"""
+
+
+def _build_criteria_value_spec(fields_list):
+    """Describes the value format the model must emit for each criterion.
+
+    Legacy profiles are boolean-only, so a single yes/no/unknown rule covers them.
+    Unified `fields` profiles mix numbers, tiers and enums; without a per-field
+    format the model answers yes/no for everything and the typed values are
+    rejected downstream as invalid_number / invalid_tier.
+    """
+    if not fields_list:
+        return _LEGACY_CRITERIA_VALUE_SPEC
+
+    lines = [
+        "- Criteria: each criterion below states the exact value format it accepts.",
+        "  Emit the literal value, never yes/no, unless the criterion is boolean.",
+        "  Use null when the listing does not state the fact (do not guess).",
+    ]
+
+    for field in fields_list:
+        fid = field.get("id")
+        if not fid:
+            continue
+
+        ftype = field.get("type", "boolean")
+        label = field.get("label") or fid
+        wants = field.get("buyer_wants") or {}
+
+        if ftype == "boolean":
+            fmt = '"yes", "no" or "unknown"'
+        elif ftype == "number":
+            unit = field.get("unit")
+            fmt = "a bare JSON number (no units, no ranges, no text) or null"
+            if unit:
+                fmt += f", expressed in {unit}"
+        elif ftype == "tier":
+            fmt = "an integer from 1 to 5 or null"
+            scale = field.get("tier_scale")
+            if scale:
+                fmt += f" where {scale}"
+        elif ftype == "enum":
+            # A playbook declares the allowed values outright; an intent-shaped
+            # field only implies them through what the buyer wants.
+            allowed = field.get("options") or (
+                wants.get("preferred", []) + wants.get("excluded", [])
+            )
+            allowed_str = ", ".join(f'"{option}"' for option in allowed)
+            fmt = (
+                f"exactly one of [{allowed_str}] or null"
+                if allowed_str
+                else "a single short lowercase label or null"
+            )
+        else:
+            fmt = "a short string (max 120 chars) or null"
+
+        line = f'  - "{fid}" ({label}) -> {fmt}'
+        description = field.get("description")
+        if description:
+            line += f"\n      {description}"
+        lines.append(line)
+
+    return "\n".join(lines)
+
+
 def build_evaluation_prompt(
     title,
     details_text,
@@ -21,42 +89,84 @@ def build_evaluation_prompt(
     with open(_INTERNAL_PROMPT_PATH, encoding="utf-8") as f:
         template = f.read()
 
-    # Build the JSON skeleton dynamically from criteria (supports old and new split schema)
+    # Build the JSON skeleton dynamically from criteria (supports old, new split schema, and unified fields)
     criteria_list = []
+    fields_list = []
+    dimensions_enabled = True
     try:
         if item_json_str:
             item_config = json.loads(item_json_str)
-            criteria_list = item_config.get("extraction_criteria") or item_config.get(
-                "explicit_positive_criteria", []
-            ) + item_config.get("explicit_negative_criteria", [])
+            fields_list = item_config.get("fields", [])
+            dimensions_enabled = item_config.get("dimensions_enabled", True)
+            if not fields_list:
+                criteria_list = item_config.get(
+                    "extraction_criteria"
+                ) or item_config.get(
+                    "explicit_positive_criteria", []
+                ) + item_config.get("explicit_negative_criteria", [])
     except Exception:
         pass
 
     skeleton_criteria = {}
-    for c in criteria_list:
-        cid = c.get("id")
-        if cid:
-            skeleton_criteria[cid] = {
-                "value": "unknown",
-                "evidence_quote": "",
-                "reasoning": "",
-            }
+    if fields_list:
+        for f in fields_list:
+            fid = f.get("id")
+            ftype = f.get("type", "boolean")
+            if fid:
+                if ftype == "boolean":
+                    skeleton_criteria[fid] = {
+                        "value": "unknown",
+                        "evidence_quote": "",
+                        "reasoning": "",
+                    }
+                elif ftype in ("number", "tier"):
+                    skeleton_criteria[fid] = {
+                        "value": None,
+                        "evidence_quote": "",
+                        "reasoning": "",
+                    }
+                elif ftype == "enum":
+                    skeleton_criteria[fid] = {
+                        "value": None,
+                        "evidence_quote": "",
+                        "reasoning": "",
+                    }
+                else:  # text
+                    skeleton_criteria[fid] = {
+                        "value": None,
+                        "evidence_quote": "",
+                    }
+    else:
+        for c in criteria_list:
+            cid = c.get("id")
+            if cid:
+                skeleton_criteria[cid] = {
+                    "value": "unknown",
+                    "evidence_quote": "",
+                    "reasoning": "",
+                }
+
+    criteria_value_spec = _build_criteria_value_spec(fields_list)
 
     skeleton = {
         "criteria": skeleton_criteria,
-        "dimensions": {
+    }
+
+    if dimensions_enabled:
+        skeleton["dimensions"] = {
             "trustworthiness": {"score": 1, "reasoning": ""},
             "transparency": {"score": 1, "reasoning": ""},
             "conditionConfidence": {"score": 1, "reasoning": ""},
             "documentationQuality": {"score": 1, "reasoning": ""},
             "hiddenRiskSuspicion": {"score": 1, "reasoning": ""},
             "marketAboveAverageSignal": {"score": 1, "reasoning": ""},
-        },
-        "reference_comparison": {"closer_to": "mixed", "reasoning": ""},
-        "high_value_unknowns": [],
-        "risk_flags": [],
-        "_full_info_obtained": False,
-    }
+        }
+        skeleton["reference_comparison"] = {"closer_to": "mixed", "reasoning": ""}
+        skeleton["high_value_unknowns"] = []
+        skeleton["risk_flags"] = []
+
+    skeleton["_full_info_obtained"] = False
+
     skeleton_str = json.dumps(skeleton, indent=2)
 
     filled = (
@@ -68,6 +178,7 @@ def build_evaluation_prompt(
         .replace("{{LISTING_DETAILS}}", details_text)
         .replace("{{LISTING_DESCRIPTION}}", description)
         .replace("{{JSON_SKELETON}}", skeleton_str)
+        .replace("{{CRITERIA_VALUE_SPEC}}", criteria_value_spec)
     )
     return filled
 
