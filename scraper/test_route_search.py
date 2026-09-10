@@ -133,6 +133,15 @@ class FakeCentroids:
         code = min(self.TOWNS, key=lambda c: haversine_km(point, self.TOWNS[c]))
         return code, self.TOWNS[code], haversine_km(point, self.TOWNS[code])
 
+    def nearest_n(self, point, count=3):
+        from geo import haversine_km
+
+        ranked = sorted(self.TOWNS, key=lambda c: haversine_km(point, self.TOWNS[c]))
+        return [
+            (code, self.TOWNS[code], haversine_km(point, self.TOWNS[code]))
+            for code in ranked[:count]
+        ]
+
 
 def fake_town_fetch(query):
     return {"_0": "Deutschland", f"_{int(query) // 100}": f"{query} Testort"}
@@ -250,37 +259,78 @@ class FakeOsrm:
         return total * 60.0
 
 
+def straight_line_route(points):
+    """A Route over `points`, driven at 60 km/h — so time mirrors distance."""
+    from geo import haversine_km
+
+    steps = [haversine_km(a, b) * 60.0 for a, b in zip(points, points[1:])]
+    return routing.Route(
+        polyline=list(points),
+        duration_s=sum(steps),
+        distance_m=sum(steps) / 60.0 * 1000.0,
+        segment_durations=steps,
+    )
+
+
 def test_detour_is_extra_driving_time_not_distance_from_the_route():
     """The number the whole feature turns on."""
-    line = [(48.0, 10.0), (48.0, 12.0)]
+    route = straight_line_route([(48.0, 10.0), (48.0, 12.0)])
     on_the_way = (48.0, 11.0)
     off_to_the_side = (48.2, 11.0)
 
     client = FakeOsrm()
-    assert routing.detour_minutes(client, line, on_the_way) == pytest.approx(0, abs=0.1)
-    assert routing.detour_minutes(client, line, off_to_the_side) > 20
+    assert routing.detour_minutes(client, route, on_the_way) == pytest.approx(
+        0, abs=0.1
+    )
+    assert routing.detour_minutes(client, route, off_to_the_side) > 20
 
 
 def test_a_trip_that_goes_nowhere_makes_every_listing_a_round_trip():
     """Both anchors collapse, and out-and-back becomes the honest cost."""
-    line = [(48.0, 10.0), (48.0, 10.0)]
+    route = straight_line_route([(48.0, 10.0), (48.0, 10.0)])
     aside = (48.1, 10.0)
 
-    minutes = routing.detour_minutes(FakeOsrm(), line, aside)
-    one_way = FakeOsrm().duration_s([line[0], aside]) / 60.0
+    minutes = routing.detour_minutes(FakeOsrm(), route, aside)
+    one_way = FakeOsrm().duration_s([route.polyline[0], aside]) / 60.0
 
     assert minutes == pytest.approx(2 * one_way, rel=0.05)
 
 
 def test_a_listing_beside_a_short_route_is_not_charged_a_full_round_trip():
     """The trip continues past the listing, so the return leg is partly free."""
-    line = [(48.0, 10.0), (48.0, 10.05)]  # ~3.7 km
+    route = straight_line_route([(48.0, 10.0), (48.0, 10.05)])  # ~3.7 km
     aside = (48.1, 10.0)  # ~11 km to the side
 
-    minutes = routing.detour_minutes(FakeOsrm(), line, aside)
-    one_way = FakeOsrm().duration_s([line[0], aside]) / 60.0
+    minutes = routing.detour_minutes(FakeOsrm(), route, aside)
+    one_way = FakeOsrm().duration_s([route.polyline[0], aside]) / 60.0
 
     assert one_way < minutes < 2 * one_way
+
+
+def test_a_route_that_doubles_back_does_not_invent_a_detour():
+    """The case the reviewer found. Anchors 15 km apart along a there-and-back
+    trip can be neighbours on the same road; asking the router for the time
+    between them answers with the shortcut, not with the drive. A listing
+    directly on the outbound leg was charged 22 minutes it does not cost."""
+    out = [(48.0, 10.0 + step * 0.0268) for step in range(11)]  # ~20 km east
+    back = list(reversed(out))[1:]  # and back again
+    route = straight_line_route(out + back)
+
+    on_the_outbound_leg = out[9]  # ~18 km along, exactly on the road
+
+    minutes = routing.detour_minutes(FakeOsrm(), route, on_the_outbound_leg)
+
+    assert minutes == pytest.approx(0, abs=1.0)
+
+
+def test_the_reference_time_is_read_off_the_route_not_re_routed():
+    """Halves the requests per listing, and is what keeps the case above right."""
+    route = straight_line_route([(48.0, 10.0), (48.0, 12.0)])
+    client = FakeOsrm()
+
+    routing.detour_minutes(client, route, (48.1, 11.0))
+
+    assert client.calls == 1, "only the leg containing the listing is a request"
 
 
 def test_a_listing_on_a_coarsely_drawn_route_is_anchored_where_it_belongs():
@@ -294,12 +344,12 @@ def test_a_listing_on_a_coarsely_drawn_route_is_anchored_where_it_belongs():
 
 
 def test_listings_far_off_the_route_are_rejected_without_a_routing_request():
-    line = [(48.0, 10.0), (48.0, 12.0)]
+    route = straight_line_route([(48.0, 10.0), (48.0, 12.0)])
     client = FakeOsrm()
 
     annotated = routing.annotate_detours(
         client,
-        line,
+        route,
         [{"id": "a", "coordinates": (49.5, 11.0)}],
         max_offroute_km=20,
     )
@@ -311,7 +361,83 @@ def test_listings_far_off_the_route_are_rejected_without_a_routing_request():
 
 def test_listings_without_coordinates_survive_annotation():
     annotated = routing.annotate_detours(
-        FakeOsrm(), [(48.0, 10.0), (48.0, 12.0)], [{"id": "a"}]
+        FakeOsrm(), straight_line_route([(48.0, 10.0), (48.0, 12.0)]), [{"id": "a"}]
     )
 
     assert annotated[0]["detour_min"] is None
+
+
+def test_two_centres_on_one_town_widen_that_circle_to_cover_both():
+    """Dropping the second centre without widening the first leaves the corridor
+    around it uncovered: a centre that snaps 16 km back needs radius + 16, not
+    the radius + 2 the first one asked for."""
+
+    class OneTown:
+        """Everything snaps to a single town, at varying distances."""
+
+        TOWN = (48.0, 11.0)
+
+        def coordinates(self, code):
+            return self.TOWN
+
+        def nearest(self, point):
+            from geo import haversine_km
+
+            return "10000", self.TOWN, haversine_km(point, self.TOWN)
+
+        def nearest_n(self, point, count=3):
+            return [self.nearest(point)]
+
+    result = build_plan(centroids=OneTown())
+
+    assert len(result.circles) == 1, "one town can only carry one search"
+    circle = result.circles[0]
+    # The furthest ideal centre from that town decides how far the circle reaches.
+    furthest = max(
+        __import__("geo").haversine_km(OneTown.TOWN, centre)
+        for centre in __import__("corridor").centres(
+            straight_route().polyline, 25.0, 10.0
+        )
+    )
+    assert circle.radius_km >= 25 + furthest - 1
+
+
+def test_an_unrecognised_postal_code_falls_back_to_the_next_nearest():
+    """Otherwise one unknown village punches a whole circle out of the corridor."""
+    asked = []
+
+    def only_some_are_known(query):
+        asked.append(query)
+        # The nearest postal code of each centre is unknown to the platform.
+        if query.endswith("00"):
+            return {"_0": "Deutschland"}
+        return {"_0": "Deutschland", f"_{int(query)}": f"{query} Testort"}
+
+    class TwoCandidates(FakeCentroids):
+        def nearest_n(self, point, count=3):
+            code, coords, km = self.nearest(point)
+            # Same place, but a second code the platform does recognise.
+            return [(code, coords, km), (code[:-2] + "11", coords, km + 1.0)]
+
+    result = build_plan(
+        centroids=TwoCandidates(),
+        resolver=route_search.LocationResolver(fetch=only_some_are_known),
+    )
+
+    assert result.circles, "the corridor must not lose its circles"
+    assert all(circle.postal_code.endswith("11") for circle in result.circles)
+
+
+def test_a_centre_with_no_recognised_code_nearby_is_reported_as_a_gap():
+    class TwoCandidates(FakeCentroids):
+        def nearest_n(self, point, count=3):
+            code, coords, km = self.nearest(point)
+            return [(code, coords, km), (code[:-2] + "11", coords, km + 1.0)]
+
+    result = build_plan(
+        centroids=TwoCandidates(),
+        resolver=route_search.LocationResolver(fetch=lambda q: {"_0": "Deutschland"}),
+    )
+
+    assert result.circles == []
+    assert len(result.unresolved) >= 2, "every code tried is reported, not just one"

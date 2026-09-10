@@ -47,6 +47,11 @@ BROWSER_HEADERS = {
     "Accept-Language": "de-DE,de;q=0.9,en;q=0.8",
 }
 
+# How many nearby postal codes to try before giving up on a corridor centre.
+# Three, because the failure it guards against is one unrecognised village, not a
+# region the platform does not know at all — and each attempt is a lookup.
+POSTAL_FALLBACK_CANDIDATES = 3
+
 # k<keyword flag> c<category> l<location> r<radius>, any of the last three absent.
 TAIL_RE = re.compile(r"(k\d+)(c\d+)?(l\d+)?(r\d+)?$")
 
@@ -201,6 +206,9 @@ class RoutePlan:
         self.radius_km = radius_km
         self.half_width_km = half_width_km
         self.unresolved = list(unresolved)
+        # Filled in by route_store.save_plan: circles that had to reuse an
+        # existing search row bound to something else.
+        self.conflicts = []
 
     @property
     def urls(self):
@@ -213,6 +221,10 @@ class RoutePlan:
             "radius_km": self.radius_km,
             "half_width_km": self.half_width_km,
             "polyline": [[lat, lon] for lat, lon in self.route.polyline],
+            # Kept so a stored route can price a stretch of itself without
+            # asking the routing service again — and without re-routing, which
+            # would answer with a shortcut the driver is not taking.
+            "segment_durations": self.route.segment_durations,
             "circles": [circle.as_dict() for circle in self.circles],
             "unresolved": self.unresolved,
         }
@@ -239,21 +251,44 @@ def plan(
 
     ideal = corridor.centres(route.polyline, radius_km, half_width_km)
 
-    circles, unresolved, seen = [], [], set()
+    circles, unresolved = [], []
+    by_location = {}
+
     for point in ideal:
-        postal_code, snapped, snap_km = table.nearest(point)
-        location_id, label = resolver.for_postal_code(postal_code)
+        # The nearest postal code is not always one the platform recognises, and
+        # giving up on the first miss punches a hole the width of a whole circle
+        # in the corridor. Trying the next few nearest costs one extra lookup in
+        # the rare case and nothing in the common one.
+        postal_code = snapped = location_id = label = None
+        snap_km = 0.0
+        tried = []
+        for candidate, coordinates, distance_km in table.nearest_n(
+            point, POSTAL_FALLBACK_CANDIDATES
+        ):
+            tried.append(candidate)
+            found_id, found_label = resolver.for_postal_code(candidate)
+            if found_id:
+                postal_code, snapped, snap_km = candidate, coordinates, distance_km
+                location_id, label = found_id, found_label
+                break
 
         if not location_id:
-            unresolved.append(postal_code)
+            unresolved.extend(tried)
             logger.info(
-                "No location id for postal code %s; circle skipped", postal_code
+                "No location id for any of %s near this centre; circle skipped. "
+                "The corridor has a gap here.",
+                ", ".join(tried),
             )
             continue
-        if location_id in seen:
-            # Two ideal centres snapped onto the same town: one search covers both.
-            continue
-        seen.add(location_id)
+
+        if len(tried) > 1:
+            logger.info(
+                "Postal code %s is not a known location; used %s instead, %.1f km "
+                "from the ideal centre.",
+                tried[0],
+                postal_code,
+                snap_km,
+            )
 
         # Snapping moved this centre by snap_km, so anything the ideal centre
         # would have covered is now at most radius + snap_km away. Widening each
@@ -265,10 +300,31 @@ def plan(
         # 30 km search to 43 km everywhere and flood the corridor with listings
         # that are nowhere near it — one awkward centre would undo the precision
         # the corridor is for.
-        effective = math.ceil(radius_km + snap_km)
-        circles.append(
-            Circle(snapped, postal_code, location_id, label, snap_km, effective)
-        )
+        needed = math.ceil(radius_km + snap_km)
+
+        existing = by_location.get(location_id)
+        if existing is None:
+            circle = Circle(snapped, postal_code, location_id, label, snap_km, needed)
+            by_location[location_id] = circle
+            circles.append(circle)
+            continue
+
+        # Two ideal centres snapped onto the same town, so one search has to
+        # stand in for both — and it has to reach as far as the further of them
+        # required. Merely dropping the second centre, which is what this did
+        # first, leaves the corridor around it uncovered: a centre 30 km further
+        # along that snaps 16 km back needs radius + 16, not the radius + 2 the
+        # first one asked for.
+        if needed > existing.radius_km:
+            logger.info(
+                "Two corridor centres snapped onto %s; widening its circle from "
+                "r%s to r%s so it still covers both.",
+                label,
+                existing.radius_km,
+                needed,
+            )
+            existing.radius_km = needed
+            existing.snap_km = max(existing.snap_km, snap_km)
 
     for circle in circles:
         circle.url = with_location(base_url, circle.location_id, circle.radius_km)

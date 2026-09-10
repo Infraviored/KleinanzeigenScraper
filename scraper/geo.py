@@ -22,6 +22,32 @@ import re
 
 EARTH_RADIUS_KM = 6371.0088
 
+# The sixteen federal states, spelled as the site spells them. This is the join
+# key between a listing's printed location and the gazetteer, so both sides have
+# to agree exactly — and one of them was wrong: the source gazetteer spelled
+# 1,307 rows "Schlewig-Holstein", which silently made every listing in that state
+# unplaceable. The tuple is the single definition both sides now use, and
+# `test_every_state_in_the_gazetteer_is_a_real_one` fails if the data drifts from
+# it again.
+FEDERAL_STATES = (
+    "Baden-Württemberg",
+    "Bayern",
+    "Berlin",
+    "Brandenburg",
+    "Bremen",
+    "Hamburg",
+    "Hessen",
+    "Mecklenburg-Vorpommern",
+    "Niedersachsen",
+    "Nordrhein-Westfalen",
+    "Rheinland-Pfalz",
+    "Saarland",
+    "Sachsen",
+    "Sachsen-Anhalt",
+    "Schleswig-Holstein",
+    "Thüringen",
+)
+
 CENTROID_PATH = os.path.join(
     os.path.dirname(os.path.abspath(__file__)), "reference", "plz_centroids.csv"
 )
@@ -102,6 +128,23 @@ class PostalCentroids:
             if km < best_km:
                 best_code, best_coords, best_km = code, coords, km
         return best_code, best_coords, best_km
+
+    def nearest_n(self, point, count=3):
+        """The `count` closest postal codes, nearest first.
+
+        A corridor centre needs a postal code the *platform* also recognises, and
+        the nearest one is not always among those. Offering the next few lets a
+        caller try again instead of leaving a hole in the corridor where a single
+        unrecognised village happened to be closest.
+        """
+        ranked = sorted(
+            (
+                (haversine_km(point, coords), code, coords)
+                for code, coords in self._by_code.items()
+            ),
+            key=lambda row: row[0],
+        )
+        return [(code, coords, km) for km, code, coords in ranked[:count]]
 
 
 _CACHED = None

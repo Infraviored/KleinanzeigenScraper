@@ -54,6 +54,45 @@ def get_db_connection():
     return sqlite3.connect(DB_PATH)
 
 
+def annotate_route_detours(conn, campaign_id=None):
+    """Computes detours for every route search that has listings waiting.
+
+    Deliberately forgiving: a route whose routing fails is logged and the rest
+    still run. The detour is an enrichment, and an enrichment must never be able
+    to fail a scrape that already succeeded.
+    """
+    try:
+        import route_pipeline
+        import route_store
+
+        route_store.ensure_schema(conn)
+        if campaign_id is None:
+            rows = conn.execute("SELECT id, name FROM route_searches").fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT id, name FROM route_searches WHERE campaign_id = ?",
+                (campaign_id,),
+            ).fetchall()
+    except Exception as exc:
+        logger.info("No route searches to annotate (%s).", exc)
+        return
+
+    for row in rows:
+        route_id, name = row[0], row[1]
+        try:
+            summary = route_pipeline.annotate(conn, route_id)
+            if summary["considered"]:
+                logger.info("Route %s (%s): %s", route_id, name, summary)
+        except Exception as exc:
+            logger.warning(
+                "Could not compute detours for route %s (%s): %s. Listings are "
+                "stored; the next run will try again.",
+                route_id,
+                name,
+                exc,
+            )
+
+
 def run_route_mode(args):
     """Plans a route corridor, or computes detours for one already planned.
 
@@ -347,6 +386,14 @@ def main():
             logger.info("Description harvesting completed successfully.")
         except Exception as e:
             logger.error(f"Error during detailed description harvesting: {str(e)}")
+
+        # 1.6. Detours for anything collected along a route.
+        #
+        # After the scrape, never during it. A listing's detour is worth having
+        # but is never worth losing a listing over, so a routing service that is
+        # slow or down must not be able to reach the fetching loop. Failures here
+        # leave listings in place without a detour; the next run picks them up.
+        annotate_route_detours(conn, args.campaign_id)
 
     # 2. Processing Mode
     if args.mode in ["process", "both"]:

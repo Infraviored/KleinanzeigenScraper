@@ -97,7 +97,7 @@ def create(
             f"cannot be searched. Unresolved postal codes: {plan.unresolved}"
         )
 
-    route_id = route_store.save_plan(
+    route_id, conflicts = route_store.save_plan(
         conn,
         plan,
         base_url=base_url,
@@ -116,6 +116,15 @@ def create(
         len(plan.circles),
         half_width_km * 2,
     )
+    if conflicts:
+        logger.warning(
+            "%d of %d circles reuse a search bound differently than this route. "
+            "Their listings will not be scored as this route expects: %s",
+            len(conflicts),
+            len(plan.circles),
+            "; ".join(f"{c['label']} ({', '.join(c['reasons'])})" for c in conflicts),
+        )
+    plan.conflicts = conflicts
     return route_id, plan
 
 
@@ -147,8 +156,8 @@ def annotate(
     Returns a summary rather than the rows: the numbers are in the database, and
     what a caller wants to know is how much was done and what could not be.
     """
-    polyline = route_store.polyline(conn, route_search_id)
-    if len(polyline) < 2:
+    route = route_store.route(conn, route_search_id)
+    if route is None:
         raise ValueError(f"Route {route_search_id} has no stored geometry.")
 
     client = client or routing.OsrmClient()
@@ -170,7 +179,7 @@ def annotate(
         located.append(dict(listing, coordinates=coordinates))
 
     annotated = routing.annotate_detours(
-        client, polyline, located, max_offroute_km=max_offroute_km
+        client, route, located, max_offroute_km=max_offroute_km
     )
 
     too_far = 0

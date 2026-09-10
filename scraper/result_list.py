@@ -29,21 +29,29 @@ import json
 import logging
 import re
 
+import geo
+
 logger = logging.getLogger(__name__)
 
 LIST_OPEN_RE = re.compile(r'<ul[^>]*id="srchrslt-adtable"[^>]*>')
-CARD_RE = re.compile(r'data-adid="(\d+)"\s+data-href="([^"]+)"')
+# The two attributes anchor a card, in whichever order and however far apart the
+# markup puts them: requiring `data-adid` to be immediately followed by
+# `data-href` would turn a reordered attribute into zero listings found, silently
+# — which is exactly the failure mode this module was written to end.
+CARD_OPEN_RE = re.compile(r"<article\b[^>]*>", re.I)
+ADID_RE = re.compile(r'data-adid="(\d+)"')
+HREF_RE = re.compile(r'data-href="([^"]+)"')
 LD_JSON_RE = re.compile(r'<script type="application/ld\+json">(.*?)</script>', re.S)
 TOTAL_RE = re.compile(r"([\d.]+)\s+Ergebnisse?")
 
 # "<title> <Bundesland> - <Ort> Vorschau" — the state name anchors the split, so
-# a title that itself contains a hyphen cannot be mistaken for the location.
+# a title that itself contains a hyphen cannot be mistaken for the location. The
+# names come from geo so this pattern and the gazetteer cannot drift apart;
+# longest-first, or "Sachsen" would match the start of "Sachsen-Anhalt".
 ALT_LOCATION_RE = re.compile(
     r'alt="[^"]*?\b('
-    r"Baden-Württemberg|Bayern|Berlin|Brandenburg|Bremen|Hamburg|Hessen|"
-    r"Mecklenburg-Vorpommern|Niedersachsen|Nordrhein-Westfalen|Rheinland-Pfalz|"
-    r"Saarland|Sachsen-Anhalt|Sachsen|Schleswig-Holstein|Thüringen"
-    r')\s*-\s*([^"]+?)\s+Vorschau"'
+    + "|".join(sorted(map(re.escape, geo.FEDERAL_STATES), key=len, reverse=True))
+    + r')\s*-\s*([^"]+?)\s+Vorschau"'
 )
 PRICE_RE = re.compile(r">\s*([\d.]+)\s*€(\s*VB)?\s*<")
 
@@ -80,15 +88,26 @@ def result_list_html(page_html):
             )
         return ""
 
-    start = opening.end()
-    depth = 1
-    for token in re.finditer(r"<(/?)ul\b", page_html[start:]):
-        depth += -1 if token.group(1) else 1
-        if depth == 0:
-            return page_html[start : start + token.start()]
+    # Counted with a parser rather than by matching `<ul>` against `</ul>` in the
+    # raw text. Depth counting reads tags inside scripts, comments and attribute
+    # values as real markup — and this page ships a script that mentions
+    # `#srchrslt-adtable` — so one `</ul>` in a JS string would cut the list
+    # short and drop every result after it, or one unclosed `<ul>` would run past
+    # the end and let the whole nationwide carousel through. Both fail silently,
+    # which is the failure this module exists to stop.
+    from bs4 import BeautifulSoup
 
-    logger.warning("Result list is not closed; reading to the end of the page.")
-    return page_html[start:]
+    soup = BeautifulSoup(page_html, "html.parser")
+    element = soup.find("ul", id="srchrslt-adtable")
+    if element is None:
+        # The id is in the page but not on a `<ul>` bs4 will parse — malformed
+        # enough that guessing a boundary would be worse than reporting none.
+        logger.warning(
+            "Found the result list id in the page but could not parse the list "
+            "element. Treating the page as empty rather than guessing."
+        )
+        return ""
+    return element.decode_contents()
 
 
 def total_results(page_html):
@@ -100,13 +119,19 @@ def total_results(page_html):
 
 
 def _card_segments(list_html):
-    """Splits the list into one chunk per card."""
-    positions = [
-        (m.start(), m.group(1), m.group(2)) for m in CARD_RE.finditer(list_html)
-    ]
-    for index, (start, adid, href) in enumerate(positions):
-        end = positions[index + 1][0] if index + 1 < len(positions) else len(list_html)
-        yield adid, href, list_html[start:end]
+    """Splits the list into one chunk per card that carries an id and a link."""
+    opens = [m for m in CARD_OPEN_RE.finditer(list_html)]
+
+    cards = []
+    for index, opening in enumerate(opens):
+        adid = ADID_RE.search(opening.group(0))
+        href = HREF_RE.search(opening.group(0))
+        if not adid or not href:
+            continue
+        end = opens[index + 1].start() if index + 1 < len(opens) else len(list_html)
+        cards.append((adid.group(1), href.group(1), list_html[opening.start() : end]))
+
+    return cards
 
 
 def _title_and_description(segment):

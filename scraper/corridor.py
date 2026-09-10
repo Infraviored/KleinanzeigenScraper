@@ -105,8 +105,12 @@ def centres(polyline, radius_km, half_width_km):
     return [point_at_km(polyline, index * step) for index in range(gaps + 1)]
 
 
-def _local_metres_per_degree(latitude):
-    """Scale factors for a flat approximation around a given latitude."""
+def _km_per_degree(latitude):
+    """Kilometres per degree of latitude and of longitude, at this latitude.
+
+    Longitude degrees shrink towards the poles, which is the whole reason this
+    is a function of latitude rather than a constant.
+    """
     per_degree_lat = math.pi * EARTH_RADIUS_KM / 180.0
     return per_degree_lat, per_degree_lat * math.cos(math.radians(latitude))
 
@@ -117,7 +121,7 @@ def distance_to_segment_km(point, start, end):
     Projected onto a plane local to the point. Over segment lengths of a few
     kilometres the distortion is far below the precision this feeds.
     """
-    lat_scale, lon_scale = _local_metres_per_degree(point[0])
+    lat_scale, lon_scale = _km_per_degree(point[0])
 
     def project(p):
         return ((p[1] - point[1]) * lon_scale, (p[0] - point[0]) * lat_scale)
@@ -167,7 +171,7 @@ def project_onto_route(point, polyline):
 
 def _foot_fraction(point, start, end):
     """Position of the perpendicular foot along a segment, clamped to [0, 1]."""
-    lat_scale, lon_scale = _local_metres_per_degree(point[0])
+    lat_scale, lon_scale = _km_per_degree(point[0])
 
     ax = (start[1] - point[1]) * lon_scale
     ay = (start[0] - point[0]) * lat_scale

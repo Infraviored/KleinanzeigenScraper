@@ -114,9 +114,40 @@ def test_the_federal_state_disambiguates_repeated_town_names():
     places = geo.places()
 
     south = places.coordinates("Salem", "Baden-Württemberg")
-    north = places.coordinates("Salem", "Schlewig-Holstein")
+    north = places.coordinates("Salem", "Schleswig-Holstein")
 
     assert south[0] < 48 and north[0] > 53
+
+
+def test_every_state_in_the_gazetteer_is_a_real_one():
+    """The source table spelled 1,307 rows "Schlewig-Holstein", so every listing
+    in that state resolved to nothing. Nothing caught it, because the test that
+    should have used the same misspelling. This is the guard that would have."""
+    import csv
+
+    with open(
+        os.path.join(HERE, "reference", "place_centroids.csv"), encoding="utf-8"
+    ) as fh:
+        reader = csv.reader(fh)
+        next(reader)
+        found = {row[1] for row in reader if len(row) > 1}
+
+    assert found <= set(geo.FEDERAL_STATES), (
+        f"not real states: {found - set(geo.FEDERAL_STATES)}"
+    )
+    assert found == set(geo.FEDERAL_STATES), (
+        f"missing: {set(geo.FEDERAL_STATES) - found}"
+    )
+
+
+def test_the_location_pattern_accepts_every_state_the_gazetteer_knows():
+    """Pattern and data are generated from one list, so they cannot drift."""
+    for state in geo.FEDERAL_STATES:
+        alt = f'alt="Ein Schrank {state} - Musterstadt Vorschau"'
+        match = result_list.ALT_LOCATION_RE.search(alt)
+        assert match, state
+        assert match.group(1) == state
+        assert match.group(2) == "Musterstadt"
 
 
 def test_an_ambiguous_town_without_a_state_resolves_to_nothing():
@@ -187,3 +218,50 @@ def test_a_listing_without_a_price_yields_an_empty_string_not_the_word_none():
     assert listing["price"] == ""
     assert listing["location"] == ""
     assert listing["short_description"] == ""
+
+
+def test_a_script_mentioning_the_list_does_not_cut_the_results_short():
+    """Depth-counting `<ul>` in raw text reads tags inside scripts and comments as
+    markup. This page ships a script that names the list's own selector, so the
+    hazard is not hypothetical: one `</ul>` in a JS string would silently drop
+    every result after it."""
+    page = (
+        '<html><body><ul id="srchrslt-adtable">'
+        '<article data-adid="1" data-href="/a"></article>'
+        '<script>var t = "</ul>"; // closes nothing</script>'
+        '<article data-adid="2" data-href="/b"></article>'
+        "</ul>"
+        '<div><article data-adid="99" data-href="/carousel"></article></div>'
+        "</body></html>"
+    )
+
+    found = [listing["id"] for listing in result_list.parse(page)]
+
+    assert found == ["1", "2"], "the script's text is not markup"
+    assert "99" not in found, "and the carousel is still outside the list"
+
+
+def test_a_card_survives_its_attributes_being_reordered():
+    """Requiring data-adid to sit immediately before data-href would turn a
+    reordered attribute into zero listings found, silently."""
+    page = (
+        '<ul id="srchrslt-adtable">'
+        '<article class="card" data-href="/a" data-adid="7"></article>'
+        "</ul>"
+    )
+
+    found = result_list.parse(page)
+
+    assert [listing["id"] for listing in found] == ["7"]
+    assert found[0]["url"].endswith("/a")
+
+
+def test_an_element_without_both_attributes_is_not_a_card():
+    page = (
+        '<ul id="srchrslt-adtable">'
+        '<article class="promo"></article>'
+        '<article data-adid="7" data-href="/a"></article>'
+        "</ul>"
+    )
+
+    assert [listing["id"] for listing in result_list.parse(page)] == ["7"]

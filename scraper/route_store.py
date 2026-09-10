@@ -81,10 +81,11 @@ def save_plan(
 ):
     """Stores a corridor plan and registers each circle as an ordinary search.
 
-    Returns the route search id. Circles are inserted with `INSERT OR IGNORE`
-    because `searches.url` is unique: a corridor that overlaps one the user
-    already had reuses that search rather than failing, which is the behaviour
-    that makes overlapping routes cheap instead of an error.
+    Returns (route_search_id, conflicts). A conflict is a circle that had to
+    reuse an existing search row whose binding differs from this route's — a
+    different knowledge set or campaign, or one that is disabled. Reuse itself is
+    what makes overlapping corridors cheap rather than an error; reuse of a row
+    that means something else is a problem the caller has to see.
     """
     ensure_schema(conn)
 
@@ -108,33 +109,70 @@ def save_plan(
     )
     route_id = cursor.lastrowid
 
+    conflicts = []
     for index, circle in enumerate(plan.circles, 1):
-        cursor.execute(
-            "INSERT OR IGNORE INTO searches (campaign_id, name, url, enabled, "
-            "knowledge_set_id) VALUES (?, ?, ?, 1, ?)",
-            (
-                campaign_id,
-                f"{name or destination} · {index}/{len(plan.circles)} {circle.label}",
-                circle.url,
-                knowledge_set_id,
-            ),
-        )
-        row = cursor.execute(
-            "SELECT id FROM searches WHERE url = ?", (circle.url,)
+        label = f"{name or destination} · {index}/{len(plan.circles)} {circle.label}"
+
+        existing = cursor.execute(
+            "SELECT id, campaign_id, knowledge_set_id, enabled FROM searches "
+            "WHERE url = ?",
+            (circle.url,),
         ).fetchone()
-        if row is None:
-            logger.warning("Could not register a search for %s", circle.url)
-            continue
+
+        if existing is None:
+            cursor.execute(
+                "INSERT INTO searches (campaign_id, name, url, enabled, "
+                "knowledge_set_id) VALUES (?, ?, ?, 1, ?)",
+                (campaign_id, label, circle.url, knowledge_set_id),
+            )
+            search_id = cursor.lastrowid
+        else:
+            # `searches.url` is unique, so a corridor crossing a town another
+            # search already covers has to reuse that row. Reuse is only safe
+            # when the row means the same thing: a search bound to a different
+            # knowledge set would score wardrobes with laptop criteria, and a
+            # disabled one would never be scraped at all. Silently accepting
+            # either was the original mistake — the circle is now recorded, and
+            # the mismatch reported, rather than pretending it was registered.
+            search_id, existing_campaign, existing_set, enabled = existing
+            mismatch = []
+            if knowledge_set_id is not None and existing_set != knowledge_set_id:
+                mismatch.append(
+                    f"knowledge set {existing_set} instead of {knowledge_set_id}"
+                )
+            if campaign_id is not None and existing_campaign != campaign_id:
+                mismatch.append(
+                    f"campaign {existing_campaign} instead of {campaign_id}"
+                )
+            if not enabled:
+                mismatch.append("disabled")
+
+            if mismatch:
+                conflicts.append(
+                    {
+                        "url": circle.url,
+                        "search_id": search_id,
+                        "label": circle.label,
+                        "reasons": mismatch,
+                    }
+                )
+                logger.warning(
+                    "Circle %s reuses existing search %s, which is %s. Its "
+                    "listings will not be scored the way this route expects.",
+                    circle.label,
+                    search_id,
+                    " and ".join(mismatch),
+                )
 
         cursor.execute(
             "INSERT OR REPLACE INTO route_search_circles "
             "(route_search_id, search_id, location_id, label, radius_km) "
             "VALUES (?, ?, ?, ?, ?)",
-            (route_id, row[0], circle.location_id, circle.label, circle.radius_km),
+            (route_id, search_id, circle.location_id, circle.label, circle.radius_km),
         )
 
     conn.commit()
-    return route_id
+    return route_id, conflicts
 
 
 def get_plan(conn, route_search_id):
@@ -156,6 +194,31 @@ def polyline(conn, route_search_id):
     if not plan:
         return []
     return [(lat, lon) for lat, lon in plan.get("polyline", [])]
+
+
+def route(conn, route_search_id):
+    """The stored route, rebuilt well enough to price stretches of itself.
+
+    The per-segment durations are carried through so a detour is measured
+    against what the drive actually costs, not against a fresh shortest path
+    between the same two anchors.
+    """
+    import routing
+
+    plan = get_plan(conn, route_search_id)
+    if not plan:
+        return None
+
+    points = [(lat, lon) for lat, lon in plan.get("polyline", [])]
+    if len(points) < 2:
+        return None
+
+    return routing.Route(
+        polyline=points,
+        duration_s=(plan.get("duration_min") or 0) * 60.0,
+        distance_m=(plan.get("distance_km") or 0) * 1000.0,
+        segment_durations=plan.get("segment_durations"),
+    )
 
 
 def listings_for_route(conn, route_search_id):
