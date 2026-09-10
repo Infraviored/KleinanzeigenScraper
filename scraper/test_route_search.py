@@ -273,16 +273,55 @@ def straight_line_route(points):
 
 
 def test_detour_is_extra_driving_time_not_distance_from_the_route():
-    """The number the whole feature turns on."""
+    """The number the whole feature turns on.
+
+    A listing 22 km to the side of a 149 km route costs about six minutes, not
+    the forty-four its distance suggests, because the driver drifts towards it
+    over the whole journey rather than turning off and back. That gap is the
+    entire reason this is measured in minutes of detour rather than kilometres
+    of separation.
+
+    This test used to demand more than twenty minutes, which was the answer the
+    old bracketed calculation gave — it charged every listing an out-and-back
+    from the nearest point on the route. The test was pinning the bug.
+    """
     route = straight_line_route([(48.0, 10.0), (48.0, 12.0)])
     on_the_way = (48.0, 11.0)
-    off_to_the_side = (48.2, 11.0)
+    off_to_the_side = (48.2, 11.0)  # 22 km from the line
 
     client = FakeOsrm()
     assert routing.detour_minutes(client, route, on_the_way) == pytest.approx(
         0, abs=0.1
     )
-    assert routing.detour_minutes(client, route, off_to_the_side) > 20
+
+    aside = routing.detour_minutes(client, route, off_to_the_side)
+    assert aside > 1.0, "a genuine diversion still costs something"
+    assert aside < 15.0, (
+        "and it costs far less than the 44 minutes an out-and-back would, "
+        "which is what makes detour a different question from distance"
+    )
+
+
+def test_an_ordinary_route_asks_the_router_the_plain_question():
+    """A -> listing -> B, and nothing else.
+
+    Every extra waypoint is a constraint on the router, and constraints only
+    ever make the answer longer. The version that fed the route's own vertices
+    back in charged Friedrichshafen 140 minutes for a 15-minute stop. On a route
+    that never doubles back there is nothing to preserve, so nothing is sent.
+    """
+    route = straight_line_route([(48.0, 10.0), (48.0, 11.0), (48.0, 12.0)])
+    seen = []
+
+    class Recording(FakeOsrm):
+        def duration_s(self, points):
+            seen.append(list(points))
+            return super().duration_s(points)
+
+    listing = (48.1, 11.0)
+    routing.detour_minutes(Recording(), route, listing)
+
+    assert seen == [[route.polyline[0], listing, route.polyline[-1]]]
 
 
 def test_a_trip_that_goes_nowhere_makes_every_listing_a_round_trip():
@@ -339,10 +378,11 @@ def test_a_detour_near_a_turnaround_is_charged_rather_than_clamped_to_zero():
     assert minutes > 2.0, "a real diversion must not be clamped away"
 
 
-def test_both_halves_of_the_comparison_follow_the_same_path():
-    """`direct` walks the polyline, so `via` is given the polyline's own points as
-    waypoints. Without them the two halves describe different journeys and the
-    subtraction means nothing."""
+def test_a_trip_that_doubles_back_keeps_its_far_end():
+    """A journey out and back starts and ends in the same place, so
+    `drive(A -> listing -> A)` is free to skip the far end of it entirely and
+    the subtraction goes negative. The turnarounds are handed back to the router
+    so the trip still goes where it was going."""
     route, out = there_and_back_route()
     seen = []
 
@@ -353,8 +393,8 @@ def test_both_halves_of_the_comparison_follow_the_same_path():
 
     routing.detour_minutes(Recording(), route, out[9])
 
-    assert len(seen) == 1, "only the leg containing the listing is a request"
-    assert len(seen[0]) > 3, "the route's own points are fed back in"
+    assert len(seen) == 1, "one request per listing"
+    assert len(seen[0]) > 3, "the turnaround is passed back to the router"
 
 
 def test_the_reference_time_is_read_off_the_route_not_re_routed():

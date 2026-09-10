@@ -307,3 +307,73 @@ def reversal_points(
             index += 1
 
     return found
+
+
+# A route doubles back when it returns to somewhere it has already been. Two
+# positions this far apart along the route...
+TURNAROUND_MIN_SEPARATION_KM = 15.0
+
+# ...yet this close on the ground.
+TURNAROUND_MAX_GAP_KM = 4.0
+
+# How finely to sample when looking for that.
+TURNAROUND_SAMPLE_KM = 2.0
+
+
+def turnaround_points(
+    polyline,
+    min_separation_km=TURNAROUND_MIN_SEPARATION_KM,
+    max_gap_km=TURNAROUND_MAX_GAP_KM,
+    sample_km=TURNAROUND_SAMPLE_KM,
+):
+    """Arc lengths where the route genuinely turns back on itself.
+
+    `reversal_points` above asks whether the direction of travel swings round,
+    and on a real road the answer is yes constantly: roundabouts, motorway
+    interchanges, a switchback out of a valley. Landsberg to Konstanz — a route
+    that never doubles back — has twelve of them. Handing those to a router as
+    waypoints pins the journey to the road already chosen, which is precisely
+    the mistake that charged Friedrichshafen 140 minutes for a 15-minute stop.
+
+    So this asks the question that actually matters for a detour: does the route
+    come back to somewhere it has already been? Two positions far apart along
+    the route but close together on the ground mean the driver goes out and
+    returns, and a listing near that stretch must be priced against the whole
+    loop rather than against a shortcut across it.
+
+    A roundabout fails this test — two hundred metres later the route is two
+    hundred metres away, not fifteen kilometres of driving from itself.
+    """
+    total = length_km(polyline)
+    if total < min_separation_km:
+        return []
+
+    steps = int(total / sample_km) + 1
+    samples = [
+        (index * sample_km, point_at_km(polyline, index * sample_km))
+        for index in range(steps + 1)
+    ]
+
+    found = []
+    for i, (km_a, point_a) in enumerate(samples):
+        for km_b, point_b in samples[i + 1 :]:
+            if km_b - km_a < min_separation_km:
+                continue
+            if haversine_km(point_a, point_b) <= max_gap_km:
+                # The apex of the loop, not the midpoint of the pair that found
+                # it. The waypoint has to be the place the driver actually turns
+                # round: put it short of that and the comparison journey stops
+                # short too, quietly under-charging every listing near the turn.
+                apex = max(
+                    (
+                        km_a + step * sample_km
+                        for step in range(int((km_b - km_a) / sample_km) + 1)
+                    ),
+                    key=lambda km: haversine_km(point_a, point_at_km(polyline, km)),
+                )
+                # One waypoint per loop, not one per sampled pair inside it.
+                if not found or apex - found[-1] > min_separation_km:
+                    found.append(apex)
+                break
+
+    return found

@@ -205,24 +205,40 @@ class OsrmClient:
         return self.route(points, geometry=False).duration_s
 
 
-def detour_minutes(client, route, point, bracket_km=15.0):
+def detour_minutes(client, route, point):
     """Extra driving time to collect something at `point` while driving `route`.
 
-    Anchors are placed `bracket_km` before and after the listing's nearest point
-    on the route, and the answer is what the trip between those two anchors costs
-    with the listing inserted, minus what it costs without.
+        detour = drive(the route, with the listing inserted) - drive(the route)
 
-    The "without" half is read off the route, never re-routed. Asking the routing
-    service for the time between the two anchors would answer with the *best* way
-    between them, which is not the way the driver is going: on a there-and-back
-    trip the anchors can be fifteen kilometres apart along the route and yet
-    neighbours on the same road, and the shortcut skips the whole turnaround.
-    Measured against that case, re-routing charged a listing sitting directly on
-    the driver's path a twenty-two minute detour it does not cost.
+    For an ordinary journey from A to B that is exactly `drive(A -> point -> B)
+    minus drive(A -> B)`: one request per listing, against the whole trip, which
+    is the definition and what a driver comparing this against their phone sees.
 
-    A listing beyond the end of the route collapses to an out-and-back, because
-    both anchors clamp to the same endpoint and the route contributes nothing
-    between them.
+    An earlier version measured it locally instead, between anchors fifteen
+    kilometres either side of the listing, feeding the route's own vertices back
+    in as waypoints so both halves described the same path. It over-reported,
+    badly:
+
+        Friedrichshafen     140 min      actual  15 min
+        Bermatingen         153 min      actual  37 min
+        Ueberlingen          85 min      actual  19 min
+
+    Two mistakes compounded. Forcing the route's vertices back in turns any
+    diversion into an out-and-back from the nearest route point, when a driver
+    would leave earlier and rejoin later. And the fifteen-kilometre bracket
+    forbids exactly that: around Lake Constance, rejoining within fifteen
+    kilometres means driving round the lake and back, which is how a
+    fifteen-minute stop came to cost two hours. Dropping the waypoints alone
+    fixed the inland cases exactly -- Huglfing 97 against 97, Peissenberg 86
+    against 86 -- and left the lake ones as wrong, because the bracket was the
+    other half of it.
+
+    What the waypoints were right about is kept, in the smallest form that
+    works. A journey that doubles back has the same start and end, so
+    `drive(A -> point -> A)` is free to skip the far end of it entirely and the
+    subtraction goes negative. Only the turnarounds are therefore passed back to
+    the router -- the points that carry the route's shape. An ordinary A-to-B
+    route has none of them, and the call is the plain three-point one.
     """
     import corridor
 
@@ -232,68 +248,19 @@ def detour_minutes(client, route, point, bracket_km=15.0):
         return 2 * there / 60.0
 
     at_km, _ = corridor.project_onto_route(point, polyline)
-    total_km = corridor.length_km(polyline)
+    turns = corridor.turnaround_points(polyline)
 
-    from_km = max(0.0, at_km - bracket_km)
-    to_km = min(total_km, at_km + bracket_km)
-    at_km = min(max(at_km, from_km), to_km)
+    waypoints = [polyline[0]]
+    waypoints += [corridor.point_at_km(polyline, km) for km in turns if km < at_km]
+    waypoints.append(point)
+    waypoints += [corridor.point_at_km(polyline, km) for km in turns if km >= at_km]
+    waypoints.append(polyline[-1])
 
-    before = corridor.point_at_km(polyline, from_km)
-    after = corridor.point_at_km(polyline, to_km)
-
-    # Both halves have to describe the same journey, or the subtraction is
-    # meaningless. `direct` follows the polyline, so `via` must too: handed only
-    # (before, point, after), the router is free to take whatever way it likes
-    # between them, and near a turnaround it cuts straight across — making `via`
-    # *shorter* than `direct` and the difference negative, which `max(0.0, ...)`
-    # then hides as a zero-minute detour. A listing genuinely costing four
-    # minutes near a turnaround read as free.
-    #
-    # Feeding the route's own points back in as waypoints forces the same path.
-    waypoints = (
-        [before]
-        + _route_waypoints(polyline, from_km, at_km)
-        + [point]
-        + _route_waypoints(polyline, at_km, to_km)
-        + [after]
-    )
-
-    direct = route.duration_between_km(from_km, to_km)
     via = client.duration_s(waypoints)
-    return max(0.0, (via - direct) / 60.0)
+    return max(0.0, (via - route.duration_s) / 60.0)
 
 
-# Regularly spaced waypoints keep the router roughly on the route. Far enough
-# apart to keep the request small; the places where the gap between two of them
-# would actually matter are added separately below.
-WAYPOINT_SPACING_KM = 8.0
-
-
-def _route_waypoints(polyline, from_km, to_km, spacing_km=WAYPOINT_SPACING_KM):
-    """Points along the route between two arc lengths, endpoints excluded.
-
-    Evenly spaced points are not enough on their own: everything between two
-    consecutive waypoints is the router's choice, so a turnaround falling in one
-    of those gaps is cut straight across. Measured on a there-and-back route with
-    the turn at km 20, an 8 km grid placed waypoints at km 11 and km 26 and the
-    turn between them vanished — leaving a genuine five-kilometre diversion
-    priced at fourteen seconds. Reversals are therefore added explicitly.
-    """
-    import corridor
-
-    distances = []
-    distance = from_km + spacing_km
-    while distance < to_km - 0.01:
-        distances.append(distance)
-        distance += spacing_km
-
-    distances.extend(corridor.reversal_points(polyline, from_km, to_km))
-    distances.sort()
-
-    return [corridor.point_at_km(polyline, km) for km in distances]
-
-
-def annotate_detours(client, route, listings, max_offroute_km=None, bracket_km=15.0):
+def annotate_detours(client, route, listings, max_offroute_km=None):
     """Adds a `detour_min` to each listing that carries coordinates.
 
     Listings further from the route than `max_offroute_km` are marked without a
@@ -319,7 +286,7 @@ def annotate_detours(client, route, listings, max_offroute_km=None, bracket_km=1
             continue
 
         try:
-            minutes = detour_minutes(client, route, coords, bracket_km=bracket_km)
+            minutes = detour_minutes(client, route, coords)
         except (RoutingError, KeyError, ValueError) as exc:
             # A failed attempt is not an answer. Saying so lets the caller try
             # again rather than filing a routing outage as a settled result.
