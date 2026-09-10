@@ -37,7 +37,7 @@ export default defineConfig([
 
       // Guardrail 3: Banned arbitrary pixel fonts and hallucinated Tailwind classes
       'no-restricted-syntax': [
-        'warn',
+        'error',
         {
           selector: 'JSXAttribute[name.name="className"] > Literal[value=/text-\\[[0-9]+px\\]/]',
           message:
@@ -48,15 +48,21 @@ export default defineConfig([
           message:
             'Hardcoded pixel text size (text-[...px]) used. Use the @theme type scale tokens instead.',
         },
+        // Tailwind's palette only has the shades 50 and 100-900 in hundreds,
+        // plus 950. Any other number is a class Tailwind cannot resolve, and an
+        // unresolvable class is dropped in silence -- which is how twelve
+        // borders and labels rendered unstyled for weeks behind a green build.
+        // Matching the shape of the mistake rather than the two instances of it
+        // that happened to be found.
         {
-          selector: 'JSXAttribute[name.name="className"] > Literal[value=/(slate-855|slate-550)/]',
+          selector: String.raw`JSXAttribute[name.name="className"] > Literal[value=/\b(?:bg|text|border|ring|from|via|to|fill|stroke|divide|outline|shadow|accent|caret|decoration|placeholder)-(?:slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)-(?!50\b|100\b|200\b|300\b|400\b|500\b|600\b|700\b|800\b|900\b|950\b)\d+/]`,
           message:
-            'Nonexistent Tailwind class (slate-855 / slate-550) used. Use design system tokens from index.css instead.',
+            'Tailwind has no such shade, so this class is silently discarded and the element renders unstyled. Valid shades are 50, 100-900 in hundreds, and 950 - or use a token from index.css.',
         },
         {
-          selector: 'JSXAttribute[name.name="className"] TemplateElement[value.raw=/(slate-855|slate-550)/]',
+          selector: String.raw`JSXAttribute[name.name="className"] TemplateElement[value.raw=/\b(?:bg|text|border|ring|from|via|to|fill|stroke|divide|outline|shadow|accent|caret|decoration|placeholder)-(?:slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)-(?!50\b|100\b|200\b|300\b|400\b|500\b|600\b|700\b|800\b|900\b|950\b)\d+/]`,
           message:
-            'Nonexistent Tailwind class (slate-855 / slate-550) used. Use design system tokens from index.css instead.',
+            'Tailwind has no such shade, so this class is silently discarded and the element renders unstyled. Valid shades are 50, 100-900 in hundreds, and 950 - or use a token from index.css.',
         },
         {
           selector: 'JSXElement > JSXText[value=/[a-zA-Z]{4,}/]',

@@ -195,7 +195,7 @@ export default function ListingDetailCard({
                   ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
                   : 'bg-bg-surface text-text-secondary border-border-subtle'
               )}>
-                Score: {l.niceness_score === undefined || l.niceness_score === null ? '-' : l.niceness_score}
+                {t('common.score')}: {l.niceness_score === undefined || l.niceness_score === null ? '-' : l.niceness_score}
               </div>
 
               {(() => {
@@ -304,7 +304,7 @@ export default function ListingDetailCard({
 
         {/* Description Section */}
         <div className="bg-bg-input/30 p-4 rounded-xl border border-border-subtle">
-          <h4 className="text-xs font-bold text-text-muted mb-2 font-mono uppercase tracking-wider">Description</h4>
+          <h4 className="text-xs font-bold text-text-muted mb-2 font-mono uppercase tracking-wider">{t('common.description')}</h4>
           <p className="text-xs text-text-secondary leading-relaxed whitespace-pre-wrap font-sans">
             {l.description ? l.description : t('listing.awaitingScraper')}
           </p>
@@ -448,7 +448,7 @@ export default function ListingDetailCard({
           {l.field_evaluations && l.field_evaluations.length > 0 && (
             <div className="bg-bg-input/60 p-4 rounded-xl border border-border-subtle space-y-2">
               <span className="text-2xs font-bold text-teal-500 uppercase tracking-wider block font-mono">
-                Extracted Fields & Preferences
+                {t('common.extractedFields')}
               </span>
               <div className="divide-y divide-border-subtle">
                 {l.field_evaluations.map((item, idx) => {
@@ -481,7 +481,7 @@ export default function ListingDetailCard({
                           </span>
                         </div>
                         <div className="text-xs font-semibold text-brand-accent">
-                          Extracted: <span className="font-mono">{valStr}</span>
+                          {t('common.extracted')}: <span className="font-mono">{valStr}</span>
                         </div>
                         {item.extracted.reasoning && (
                           <span className="text-2xs text-text-muted block leading-normal">{item.extracted.reasoning}</span>

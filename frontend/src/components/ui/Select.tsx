@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { cn } from '../../utils/cn';
+import { useTranslation } from '../../hooks/useTranslation';
 
 interface SelectOption {
   value: string;
@@ -24,6 +25,7 @@ export const Select: React.FC<SelectProps> = ({
   placeholder = 'Select option...',
   error = false,
 }) => {
+  const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -90,7 +92,7 @@ export const Select: React.FC<SelectProps> = ({
             ))}
             {options.length === 0 && (
               <div className="px-4 py-2.5 text-xs text-text-muted italic">
-                No options available
+                {t('common.noOptions')}
               </div>
             )}
           </div>

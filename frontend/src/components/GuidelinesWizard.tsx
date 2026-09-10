@@ -201,7 +201,7 @@ export default function GuidelinesWizard({
               <label className="block text-2xs font-bold text-text-muted uppercase tracking-wider">{t('wizard.demoResearchPrompt')}</label>
               <div className="bg-[#000e0e] border border-border-subtle rounded-xl overflow-hidden shadow-2xl">
                 <div className="flex justify-between items-center bg-bg-input/60 px-4 py-2 border-b border-border-subtle/60">
-                  <span className="text-2xs font-bold text-text-muted uppercase tracking-wider font-mono">Prompt 1: Deep Research</span>
+                  <span className="text-2xs font-bold text-text-muted uppercase tracking-wider font-mono">{t('common.promptDeepResearch')}</span>
                   <Button
                     variant="mini-slate"
                     size="xs"
@@ -336,7 +336,7 @@ export default function GuidelinesWizard({
               <label className="block text-2xs font-bold text-text-muted uppercase tracking-wider">{t('wizard.demoCalibrationPrompt')}</label>
               <div className="bg-[#000e0e] border border-border-subtle rounded-xl overflow-hidden shadow-2xl">
                 <div className="flex justify-between items-center bg-bg-input/60 px-4 py-2 border-b border-border-subtle/60">
-                  <span className="text-2xs font-bold text-text-muted uppercase tracking-wider font-mono">Prompt 2: Calibration</span>
+                  <span className="text-2xs font-bold text-text-muted uppercase tracking-wider font-mono">{t('common.promptCalibration')}</span>
                   <Button
                     variant="mini-slate"
                     size="xs"
@@ -411,7 +411,7 @@ export default function GuidelinesWizard({
               <label className="block text-2xs font-bold text-text-muted uppercase tracking-wider">{t('wizard.demoSynthesisPrompt')}</label>
               <div className="bg-[#000e0e] border border-border-subtle rounded-xl overflow-hidden shadow-2xl">
                 <div className="flex justify-between items-center bg-bg-input/60 px-4 py-2 border-b border-border-subtle/60">
-                  <span className="text-2xs font-bold text-text-muted uppercase tracking-wider font-mono">Prompt 3: Synthesis</span>
+                  <span className="text-2xs font-bold text-text-muted uppercase tracking-wider font-mono">{t('common.promptSynthesis')}</span>
                   <Button
                     variant="mini-slate"
                     size="xs"

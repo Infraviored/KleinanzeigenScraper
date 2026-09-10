@@ -1049,6 +1049,7 @@ export default function App() {
       <header className="h-16 border-b border-border-subtle bg-bg-surface/60 backdrop-blur-md sticky top-0 z-40 px-6 flex items-center justify-between">
         <div className="flex items-center space-x-3 cursor-pointer" onClick={() => navigate('landing', null, null)}>
           <img src={`${import.meta.env.BASE_URL}logo-icon.svg`} alt="prismdeals Icon" className="w-8 h-8 rounded-lg shadow shadow-black/30" />
+          {/* eslint-disable-next-line no-restricted-syntax -- the product's name, not copy: it reads the same in every language */}
           <span className="font-semibold text-lg tracking-wide text-white font-sans">prismdeals</span>
         </div>
 
@@ -1167,7 +1168,7 @@ export default function App() {
           />
           <div className="fixed top-0 right-0 bottom-0 w-72 bg-bg-surface border-l border-border-subtle p-6 z-50 flex flex-col gap-6 md:hidden animate-slide-left shadow-2xl">
             <div className="flex items-center justify-between border-b border-border-subtle pb-4">
-              <span className="font-bold text-sm text-white tracking-wide uppercase">Navigation</span>
+              <span className="font-bold text-sm text-white tracking-wide uppercase">{t('common.navigation')}</span>
               <button 
                 onClick={() => setIsMobileMenuOpen(false)}
                 className="p-1 rounded-lg border border-border-subtle text-text-muted hover:text-white"
@@ -1212,7 +1213,7 @@ export default function App() {
 
             {/* Language toggle button for Mobile */}
             <div className="space-y-1">
-              <span className="text-2xs font-bold text-text-muted uppercase tracking-wider block font-mono">Language</span>
+              <span className="text-2xs font-bold text-text-muted uppercase tracking-wider block font-mono">{t('common.language')}</span>
               <Button
                 variant="badge"
                 size="sm"
@@ -1223,7 +1224,7 @@ export default function App() {
                   <Globe className="w-4.5 h-4.5 text-text-muted" />
                   <span>{lang === 'en' ? 'ENGLISH' : 'DEUTSCH'}</span>
                 </span>
-                <span className="text-2xs text-brand-accent font-bold">Switch to {lang === 'en' ? 'DE' : 'EN'}</span>
+                <span className="text-2xs text-brand-accent font-bold">{t('common.switchTo', { lang: lang === 'en' ? 'DE' : 'EN' })}</span>
               </Button>
             </div>
 
@@ -1565,8 +1566,8 @@ export default function App() {
             {/* Grid/Split of Matched Listings */}
             {filteredListings.length === 0 ? (
               <div className="bg-slate-900/20 border border-dashed border-border-subtle rounded-2xl p-16 text-center shadow-inner">
-                <span className="text-sm text-slate-500 font-semibold block mb-1">No matching listings found</span>
-                <span className="text-xs text-slate-600 block">Configure search targets, link guidelines checklists, and trigger scraper discovery crawls to harvest deals.</span>
+                <span className="text-sm text-slate-500 font-semibold block mb-1">{t('common.noMatchingListings')}</span>
+                <span className="text-xs text-slate-600 block">{t('common.dashboardEmptyHint')}</span>
               </div>
             ) : (
               <div className="flex flex-col lg:flex-row gap-6 items-start w-full relative">
@@ -1608,7 +1609,7 @@ export default function App() {
                         />
                       ) : (
                         <div className="h-full flex flex-col items-center justify-center text-center p-8 text-text-muted">
-                          <p className="text-xs font-semibold">Listing not found</p>
+                          <p className="text-xs font-semibold">{t('common.listingNotFound')}</p>
                         </div>
                       );
                     })()

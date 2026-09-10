@@ -103,7 +103,7 @@ export default function SettingsView({ onBack }: SettingsViewProps) {
           <span className="mr-1">←</span>
           <span>{t('common.backToCampaigns')}</span>
         </Button>
-        <span className="text-slate-750 font-semibold select-none">|</span>
+        <span className="text-text-muted font-semibold select-none">|</span>
         <h2 className="text-base font-bold text-slate-200 tracking-tight">{t('settings.title')}</h2>
       </div>
 

@@ -435,7 +435,7 @@ export default function RouteResultsView({
                           </div>
                         ) : (
                           <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-xl shrink-0 border border-slate-800 bg-slate-900/60 flex items-center justify-center text-slate-600 font-mono text-2xs">
-                            No image
+                            {t('common.noImage')}
                           </div>
                         )}
 
