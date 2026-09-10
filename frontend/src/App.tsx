@@ -1353,7 +1353,7 @@ export default function App() {
                         </div>
 
                         <div className="flex flex-wrap gap-1.5 text-2xs font-semibold">
-                          <span className="bg-slate-950/60 text-slate-400 border border-slate-855 px-2 py-0.5 rounded-md">
+                          <span className="bg-slate-950/60 text-slate-400 border border-border-subtle px-2 py-0.5 rounded-md">
                             {campaignSearches.length} {t('landing.targets')}
                           </span>
                           <span className="bg-slate-950/60 text-emerald-400 border border-emerald-500/10 px-2 py-0.5 rounded-md font-bold">
@@ -1367,7 +1367,7 @@ export default function App() {
                         </div>
                       </div>
 
-                      <div className="border-t border-slate-855 mt-4 pt-3 flex justify-between items-center text-xs text-slate-400 font-bold">
+                      <div className="border-t border-border-subtle mt-4 pt-3 flex justify-between items-center text-xs text-slate-400 font-bold">
                         <span className="group-hover:text-emerald-400 transition-colors flex items-center space-x-1">
                           <span>{t('landing.openDashboard')}</span>
                           <span className="transform group-hover:translate-x-1 transition-transform">&rarr;</span>
@@ -1748,7 +1748,7 @@ export default function App() {
                   </div>
 
                   {/* Where to search: around the URL's own place, or along a drive. */}
-                  <div className="flex rounded-xl bg-slate-950/60 border border-slate-855 p-1 text-xs font-bold">
+                  <div className="flex rounded-xl bg-slate-950/60 border border-border-subtle p-1 text-xs font-bold">
                     {[
                       { key: false, label: t('common.searchModePoint') },
                       { key: true, label: t('common.searchModeRoute') },
@@ -1770,7 +1770,7 @@ export default function App() {
                   </div>
 
                   {routeMode && (
-                    <div className="bg-slate-950/60 border border-slate-855 rounded-2xl p-4 space-y-4 shadow-inner animate-fadeIn">
+                    <div className="bg-slate-950/60 border border-border-subtle rounded-2xl p-4 space-y-4 shadow-inner animate-fadeIn">
                       <p className="text-xs text-slate-400 leading-relaxed">{t('common.routeExplainer')}</p>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1877,7 +1877,7 @@ export default function App() {
 
                   {/* Reactive Indicators Panel */}
                   {!routeMode && newTargetUrl && (
-                    <div className="bg-slate-950/60 border border-slate-855 rounded-2xl p-4 space-y-3 shadow-inner animate-fadeIn">
+                    <div className="bg-slate-950/60 border border-border-subtle rounded-2xl p-4 space-y-3 shadow-inner animate-fadeIn">
                       <div className="text-xs font-bold text-slate-400 border-b border-slate-900 pb-1.5 flex justify-between items-center">
                         <span>{t('common.diagnostics')}</span>
                         {previewLoading && (

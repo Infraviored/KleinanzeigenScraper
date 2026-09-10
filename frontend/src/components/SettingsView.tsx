@@ -166,7 +166,7 @@ export default function SettingsView({ onBack }: SettingsViewProps) {
                   min
                 </div>
               </div>
-              <span className="text-2xs text-slate-550 block leading-normal">
+              <span className="text-2xs text-text-muted block leading-normal">
                 {t('settings.frequencyDesc')}
               </span>
             </div>
@@ -194,7 +194,7 @@ export default function SettingsView({ onBack }: SettingsViewProps) {
                   sec
                 </div>
               </div>
-              <span className="text-2xs text-slate-550 block leading-normal">
+              <span className="text-2xs text-text-muted block leading-normal">
                 {t('settings.delayPagesDesc')}
               </span>
             </div>
@@ -222,7 +222,7 @@ export default function SettingsView({ onBack }: SettingsViewProps) {
                   sec
                 </div>
               </div>
-              <span className="text-2xs text-slate-550 block leading-normal">
+              <span className="text-2xs text-text-muted block leading-normal">
                 {t('settings.delayListingsDesc')}
               </span>
             </div>
@@ -267,7 +267,7 @@ export default function SettingsView({ onBack }: SettingsViewProps) {
                 <label htmlFor="scraper-startup-fetch-toggle" className="text-xs font-bold text-slate-200 block cursor-pointer">
                   {t('settings.fullCrawlLabel')}
                 </label>
-                <span className="text-2xs text-slate-550 block leading-normal max-w-md">
+                <span className="text-2xs text-text-muted block leading-normal max-w-md">
                   {t('settings.fullCrawlDesc')}
                 </span>
               </div>

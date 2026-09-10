@@ -45,7 +45,7 @@ export default function ScraperProgressCard({
         </div>
         <div className="text-right shrink-0">
           <span className="text-lg font-black text-emerald-400 font-mono tracking-tight">{pct}%</span>
-          <span className="text-2xs text-slate-550 block font-semibold">{current} / {total} Completed</span>
+          <span className="text-2xs text-text-muted block font-semibold">{current} / {total} Completed</span>
         </div>
       </div>
 

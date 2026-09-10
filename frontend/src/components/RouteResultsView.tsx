@@ -314,7 +314,7 @@ export default function RouteResultsView({
         /* Populated Results View */
         <div className="space-y-4">
           {/* Filter & Sorting Controls */}
-          <Card className="p-3.5 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-slate-950/60 border-slate-855">
+          <Card className="p-3.5 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-slate-950/60 border-border-subtle">
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-2xs text-slate-500 font-bold uppercase tracking-wider flex items-center gap-1 mr-1">
                 <Filter className="w-3 h-3 text-slate-400" />

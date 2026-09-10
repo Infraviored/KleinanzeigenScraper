@@ -181,7 +181,7 @@ export default function PlaceInput({ label, placeholder, value, onChange, emptyH
           id={listId}
           ref={listRef}
           role="listbox"
-          className="absolute z-30 left-0 top-full mt-1 min-w-full w-max max-w-[min(28rem,80vw)] max-h-72 overflow-y-auto rounded-xl border border-slate-855 bg-slate-950 shadow-2xl py-1"
+          className="absolute z-30 left-0 top-full mt-1 min-w-full w-max max-w-[min(28rem,80vw)] max-h-72 overflow-y-auto rounded-xl border border-border-subtle bg-slate-950 shadow-2xl py-1"
         >
           {matches.map((place, index) => (
             <li
