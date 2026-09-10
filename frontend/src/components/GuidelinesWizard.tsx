@@ -149,10 +149,14 @@ export default function GuidelinesWizard({
   return (
     <div className="space-y-6 w-full">
       {/* Step Indicator Header */}
+      {/* min-w-0 on the cells below matters: a grid column is at least its own
+          min-content by default, so the three labels together demanded more
+          than the container had and the third was clipped off the edge at
+          phone width. */}
       <div className="grid grid-cols-3 w-full border border-border-subtle rounded-xl overflow-hidden bg-bg-input/60">
         <button
           onClick={() => setWizardStep(1)}
-          className={`py-3.5 text-xs sm:text-sm font-bold transition-all text-center border-b-2 ${
+          className={`min-w-0 px-1.5 py-3.5 text-xs sm:text-sm font-bold leading-snug break-words transition-all text-center border-b-2 ${
             wizardStep === 1
               ? 'border-brand-accent text-brand-accent bg-bg-surface/40'
               : 'border-transparent text-text-muted hover:text-text-secondary hover:bg-bg-surface/20'
@@ -163,7 +167,7 @@ export default function GuidelinesWizard({
         <button
           onClick={() => (showStep1Next || showStep2Return || marketMemo.trim()) && setWizardStep(2)}
           disabled={!(showStep1Next || showStep2Return || marketMemo.trim())}
-          className={`py-3.5 text-xs sm:text-sm font-bold transition-all text-center border-b-2 disabled:opacity-30 disabled:cursor-not-allowed ${
+          className={`min-w-0 px-1.5 py-3.5 text-xs sm:text-sm font-bold leading-snug break-words transition-all text-center border-b-2 disabled:opacity-30 disabled:cursor-not-allowed ${
             wizardStep === 2
               ? 'border-brand-accent text-brand-accent bg-bg-surface/40'
               : 'border-transparent text-text-muted hover:text-text-secondary hover:bg-bg-surface/20'
@@ -174,7 +178,7 @@ export default function GuidelinesWizard({
         <button
           onClick={() => marketMemo.trim().length > 0 && setWizardStep(3)}
           disabled={!marketMemo.trim()}
-          className={`py-3.5 text-xs sm:text-sm font-bold transition-all text-center border-b-2 disabled:opacity-30 disabled:cursor-not-allowed ${
+          className={`min-w-0 px-1.5 py-3.5 text-xs sm:text-sm font-bold leading-snug break-words transition-all text-center border-b-2 disabled:opacity-30 disabled:cursor-not-allowed ${
             wizardStep === 3
               ? 'border-brand-accent text-brand-accent bg-bg-surface/40'
               : 'border-transparent text-text-muted hover:text-text-secondary hover:bg-bg-surface/20'

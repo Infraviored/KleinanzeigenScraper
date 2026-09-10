@@ -21,6 +21,14 @@ import db_schema  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
+# The two tests that run backend/db_setup.js need the backend's own node
+# modules. Skipping rather than failing where they are absent keeps a partial
+# checkout honest; CI installs them so the guard genuinely runs there.
+needs_backend_deps = pytest.mark.skipif(
+    not os.path.isdir(os.path.join(ROOT, "backend", "node_modules", "sqlite3")),
+    reason="backend node modules not installed (npm ci --prefix backend)",
+)
+
 
 @pytest.fixture
 def fresh_db():
@@ -137,6 +145,7 @@ def test_no_module_declares_tables_outside_the_schema_file():
     )
 
 
+@needs_backend_deps
 def test_db_setup_refuses_to_delete_without_being_told_twice(fresh_db):
     """The script that deleted production while pointed somewhere else."""
     db_schema.connect(fresh_db).execute(
@@ -158,6 +167,7 @@ def test_db_setup_refuses_to_delete_without_being_told_twice(fresh_db):
     ]
 
 
+@needs_backend_deps
 def test_db_setup_writes_where_it_is_pointed(fresh_db):
     """It hardcoded data/scraper.db while the server honoured PRISMDEALS_DB.
 

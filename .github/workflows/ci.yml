@@ -58,5 +58,14 @@ jobs:
       - name: Create config.py from template
         run: cp scraper/config_template.py scraper/config.py
 
+      # test_db_schema.py runs backend/db_setup.js to prove it refuses to
+      # delete a database without being told twice. That guard is worth having
+      # in CI, and it needs the backend's own modules.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install backend dependencies
+        run: npm ci --prefix backend
+
       - name: pytest
         run: pytest scraper/ -q

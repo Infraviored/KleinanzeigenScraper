@@ -1483,13 +1483,17 @@ export default function App() {
 
               <div className="flex flex-col lg:flex-row lg:items-center gap-4 w-full md:w-auto">
                 {/* Crawler and AI control actions */}
-                <div className="grid grid-cols-3 gap-2 w-full lg:w-auto">
+                {/* Wraps rather than dividing the row into exact thirds. As a
+                    three-column grid each cell was narrower than its own label,
+                    and the buttons -- which must not break their text mid-word --
+                    overflowed and printed on top of each other. */}
+                <div className="flex flex-wrap gap-2 w-full lg:w-auto">
                   <Button
                     variant="action-emerald"
                     size="sm"
                     onClick={handleStartScrape}
                     disabled={isScraping || isProcessing}
-                    className="py-2.5 px-2 text-center flex items-center justify-center gap-1.5"
+                    className="flex-1 min-w-[9.5rem] py-2.5 px-3 text-center flex items-center justify-center gap-1.5"
                   >
                     <Search className="w-3.5 h-3.5" />
                     <span>{t('dashboard.fetchFresh')}</span>
@@ -1499,7 +1503,7 @@ export default function App() {
                     size="sm"
                     onClick={handleStartDeepUpdate}
                     disabled={isScraping || isProcessing}
-                    className="py-2.5 px-2 text-center flex items-center justify-center gap-1.5"
+                    className="flex-1 min-w-[9.5rem] py-2.5 px-3 text-center flex items-center justify-center gap-1.5"
                   >
                     <RefreshCw className="w-3.5 h-3.5" />
                     <span>{t('dashboard.updateDesc')}</span>
@@ -1509,7 +1513,7 @@ export default function App() {
                     size="sm"
                     onClick={handleStartProcess}
                     disabled={isScraping || isProcessing}
-                    className="py-2.5 px-2 text-center flex items-center justify-center gap-1.5"
+                    className="flex-1 min-w-[9.5rem] py-2.5 px-3 text-center flex items-center justify-center gap-1.5"
                   >
                     <Sparkles className="w-3.5 h-3.5" />
                     <span>{t('dashboard.autoAi')}</span>
