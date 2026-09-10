@@ -54,6 +54,64 @@ def get_db_connection():
     return sqlite3.connect(DB_PATH)
 
 
+def run_route_mode(args):
+    """Plans a route corridor, or computes detours for one already planned.
+
+    Creation and annotation are separate commands because they belong to
+    different moments: a corridor is planned once, when a buyer says where they
+    are driving, and its circles are then scraped like any other search. Detours
+    are computed afterwards, so the routing service never sits in the scraper's
+    path — if it is unreachable, listings still arrive, only without a detour.
+    """
+    import route_pipeline
+
+    conn = get_db_connection()
+
+    if args.mode == "route-create":
+        if not args.origin or not args.destination:
+            logger.error("route-create needs --from and --to")
+            return
+        if not args.urls:
+            logger.error(
+                "route-create needs --urls with one search URL to re-aim along "
+                "the route, e.g. a Kleinanzeigen search ending in k0l...r..."
+            )
+            return
+
+        route_id, plan = route_pipeline.create(
+            conn,
+            base_url=args.urls[0],
+            origin=args.origin,
+            destination=args.destination,
+            radius_km=args.radius_km,
+            half_width_km=args.corridor_km,
+            name=args.route_name,
+            campaign_id=args.campaign_id,
+            knowledge_set_id=args.knowledge_set_id,
+        )
+        print(f"__ROUTE_ID__:{route_id}")
+        for index, circle in enumerate(plan.circles, 1):
+            print(f"  {index}. r{circle.radius_km:<3} {circle.label}")
+            print(f"     {circle.url}")
+        if plan.unresolved:
+            logger.warning(
+                "No location id for these postal codes, so their circles were "
+                "skipped: %s",
+                ", ".join(plan.unresolved),
+            )
+        return
+
+    if not args.route_id:
+        logger.error("route-annotate needs --route-id")
+        return
+
+    summary = route_pipeline.annotate(conn, args.route_id)
+    print(
+        f"__ROUTE_ANNOTATED__:{summary['routed']}/{summary['considered']} "
+        f"(too far: {summary['too_far']}, unplaceable: {summary['unplaceable']})"
+    )
+
+
 def main():
     """Main entry point that acts as a wrapper for different functionalities"""
     parser = argparse.ArgumentParser(
@@ -61,9 +119,20 @@ def main():
     )
     parser.add_argument(
         "--mode",
-        choices=["scrape", "process", "both", "preview", "update-all"],
+        choices=[
+            "scrape",
+            "process",
+            "both",
+            "preview",
+            "update-all",
+            "route-create",
+            "route-annotate",
+        ],
         default="both",
-        help="Operation mode: scrape, process, both, preview, or update-all",
+        help=(
+            "Operation mode: scrape, process, both, preview, update-all, "
+            "route-create, or route-annotate"
+        ),
     )
     parser.add_argument(
         "--urls",
@@ -96,7 +165,58 @@ def main():
         help="Campaign ID to filter searches, description updates, and AI matching",
     )
 
+    # --- route search --------------------------------------------------
+    route = parser.add_argument_group(
+        "route search",
+        "Search along a route instead of around a point. A corridor is covered "
+        "by the fewest circles that reach its edges, each registered as an "
+        "ordinary search; detours are computed afterwards with route-annotate.",
+    )
+    route.add_argument(
+        "--from",
+        dest="origin",
+        help="Where the trip starts: a postal code, or 'Ort, Bundesland'",
+    )
+    route.add_argument(
+        "--to",
+        dest="destination",
+        help="Where it ends: a postal code, or 'Ort, Bundesland'",
+    )
+    route.add_argument(
+        "--radius-km",
+        type=float,
+        default=30.0,
+        help="Search radius per circle (default: 30)",
+    )
+    route.add_argument(
+        "--corridor-km",
+        type=float,
+        default=15.0,
+        help="How far off the route to search, each side (default: 15)",
+    )
+    route.add_argument(
+        "--knowledge-set-id",
+        type=int,
+        default=None,
+        help="Knowledge set the corridor's searches are scored against",
+    )
+    route.add_argument(
+        "--route-id",
+        type=int,
+        default=None,
+        help="Route search to annotate with detours",
+    )
+    route.add_argument(
+        "--route-name",
+        default=None,
+        help="Label for this route search",
+    )
+
     args = parser.parse_args()
+
+    if args.mode in ("route-create", "route-annotate"):
+        run_route_mode(args)
+        return
 
     if args.mode == "preview":
         if not args.urls or len(args.urls) == 0:
