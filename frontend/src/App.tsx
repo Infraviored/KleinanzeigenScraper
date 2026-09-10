@@ -257,21 +257,22 @@ export default function App() {
 
   // Load Prompt templates
   useEffect(() => {
+    if (!appUser) return;
     fetch('/api/prompts/research')
-      .then(r => r.text())
+      .then(r => r.ok ? r.text() : '')
       .then(setResearchPromptTemplate)
       .catch(err => console.error("Error loading research template:", err))
 
     fetch('/api/prompts/market')
-      .then(r => r.text())
+      .then(r => r.ok ? r.text() : '')
       .then(setMarketPromptTemplate)
       .catch(err => console.error("Error loading market template:", err))
 
     fetch('/api/prompts/profile')
-      .then(r => r.text())
+      .then(r => r.ok ? r.text() : '')
       .then(setProfilePromptTemplate)
       .catch(err => console.error("Error loading profile template:", err))
-  }, [])
+  }, [appUser])
 
   // Parse XML blocks in Step 3 on the fly
   useEffect(() => {

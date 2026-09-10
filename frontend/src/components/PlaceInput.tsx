@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 import { useState, useEffect, useRef, useId } from 'react'
 import { Input } from './ui/Input'
 

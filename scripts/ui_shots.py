@@ -138,16 +138,17 @@ def walk(driver, base, out_dir, width, height):
     email.send_keys(EMAIL)
     password.clear()
     password.send_keys(PASSWORD)
-    password.submit()
+    driver.find_element(By.CSS_SELECTOR, "button[type='submit']").click()
 
-    # Wait for the session rather than a fixed pause: a screenshot taken while
-    # still logged out shows an interface nobody using the app would ever see.
-    for _ in range(30):
-        time.sleep(0.5)
-        body = driver.find_element(By.TAG_NAME, "body").text
-        if "Unauthenticated" not in body and "Log In" not in body:
-            break
-    else:
+    # Wait for the session: password input disappears and app header appears.
+    try:
+        wait.until(
+            EC.invisibility_of_element_located(
+                (By.CSS_SELECTOR, "input[type='password']")
+            )
+        )
+        wait.until(EC.presence_of_element_located((By.TAG_NAME, "header")))
+    except Exception:
         print("  ! still unauthenticated - the shots below are the logged-out view")
     driver.set_window_size(width, height)
 
