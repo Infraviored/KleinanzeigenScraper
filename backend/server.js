@@ -15,6 +15,7 @@ try {
 const app = express();
 const port = 3030;
 const { spawn } = require('child_process');
+const places = require('./places');
 const sqlite3 = require('sqlite3').verbose();
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
@@ -517,6 +518,16 @@ app.post('/api/searches', async (req, res) => {
     console.error('Error saving search item:', error);
     res.status(500).json({ error: 'Failed to save search item' });
   }
+});
+
+// API: Place suggestions for the route corridor's From/To fields.
+app.get('/api/places/suggest', (req, res) => {
+  const matches = places.suggest(req.query.q || '', 8);
+  res.json({
+    places: matches.map(({ label, name, qualifier, state, postal_code, lat, lon }) => ({
+      label, name, qualifier, state, postal_code, lat, lon,
+    })),
+  });
 });
 
 // API: Plan a route corridor and register its circles as ordinary searches.

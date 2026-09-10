@@ -2,6 +2,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import type { Campaign, KnowledgeSet, SearchTarget, Listing, SampleListing } from './types'
 import ScraperProgressCard from './components/ScraperProgressCard'
+import PlaceInput from './components/PlaceInput'
+import type { Place } from './components/PlaceInput'
 import ListingDetailCard from './components/ListingDetailCard'
 import GuidelinesWizard from './components/GuidelinesWizard'
 import SettingsView from './components/SettingsView'
@@ -111,8 +113,8 @@ export default function App() {
   // pasted URL as a single one the moment it looks valid would quietly give the
   // user the point search they were trying not to make.
   const [routeMode, setRouteMode] = useState(false)
-  const [routeFrom, setRouteFrom] = useState('')
-  const [routeTo, setRouteTo] = useState('')
+  const [routeFrom, setRouteFrom] = useState<Place | null>(null)
+  const [routeTo, setRouteTo] = useState<Place | null>(null)
   const [routeRadiusKm, setRouteRadiusKm] = useState(30)
   const [routeCorridorKm, setRouteCorridorKm] = useState(15)
   const [routePlanning, setRoutePlanning] = useState(false)
@@ -477,7 +479,7 @@ export default function App() {
       setRouteError(t('common.routeNeedsUrl'));
       return;
     }
-    if (!routeFrom.trim() || !routeTo.trim()) {
+    if (!routeFrom || !routeTo) {
       setRouteError(t('common.routeNeedsBoth'));
       return;
     }
@@ -508,12 +510,14 @@ export default function App() {
         body: JSON.stringify({
           campaign_id: currentCampaignId,
           base_url: newTargetUrl,
-          origin: routeFrom.trim(),
-          destination: routeTo.trim(),
+          // The postal code, not the typed text: the user already resolved the
+          // ambiguity by choosing from the list, so nothing is left to guess.
+          origin: routeFrom.postal_code,
+          destination: routeTo.postal_code,
           radius_km: routeRadiusKm,
           corridor_km: routeCorridorKm,
           knowledge_set_id: boundKsId,
-          name: `${suggested}: ${routeFrom.trim()} → ${routeTo.trim()}`
+          name: `${suggested}: ${routeFrom.name} → ${routeTo.name}`
         })
       });
 
@@ -528,8 +532,8 @@ export default function App() {
         width: (data.corridor_km || routeCorridorKm) * 2
       });
       setNewTargetUrl('');
-      setRouteFrom('');
-      setRouteTo('');
+      setRouteFrom(null);
+      setRouteTo(null);
       setIsRegisteringTarget(false);
 
       if (data.searches && data.searches.length) {
@@ -1699,26 +1703,20 @@ export default function App() {
                       <p className="text-xs text-slate-400 leading-relaxed">{t('common.routeExplainer')}</p>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div className="space-y-1.5">
-                          <label htmlFor="route-from" className="text-2xs text-slate-500 font-bold uppercase tracking-wider block">{t('common.routeFrom')}</label>
-                          <Input
-                            id="route-from"
-                            type="text"
-                            value={routeFrom}
-                            onChange={e => setRouteFrom(e.target.value)}
-                            placeholder={t('common.routePlaceholder')}
-                          />
-                        </div>
-                        <div className="space-y-1.5">
-                          <label htmlFor="route-to" className="text-2xs text-slate-500 font-bold uppercase tracking-wider block">{t('common.routeTo')}</label>
-                          <Input
-                            id="route-to"
-                            type="text"
-                            value={routeTo}
-                            onChange={e => setRouteTo(e.target.value)}
-                            placeholder={t('common.routePlaceholder')}
-                          />
-                        </div>
+                        <PlaceInput
+                          label={t('common.routeFrom')}
+                          placeholder={t('common.routePlaceholder')}
+                          value={routeFrom}
+                          onChange={setRouteFrom}
+                          emptyHint={t('common.routeNoMatches')}
+                        />
+                        <PlaceInput
+                          label={t('common.routeTo')}
+                          placeholder={t('common.routePlaceholder')}
+                          value={routeTo}
+                          onChange={setRouteTo}
+                          emptyHint={t('common.routeNoMatches')}
+                        />
                       </div>
 
                       <div className="grid grid-cols-2 gap-3">
@@ -1760,14 +1758,38 @@ export default function App() {
                         </div>
                       </div>
 
-                      <button
-                        type="button"
-                        onClick={handlePlanCorridor}
-                        disabled={routePlanning}
-                        className="w-full rounded-xl bg-emerald-500/15 text-emerald-300 border border-emerald-500/20 px-4 py-2.5 text-sm font-bold hover:bg-emerald-500/25 disabled:opacity-50 transition-colors"
-                      >
-                        {routePlanning ? t('common.planningCorridor') : t('common.planCorridor')}
-                      </button>
+                      {(() => {
+                        // What is still missing, in the order the form asks for
+                        // it. A disabled control that does not say why is a dead
+                        // end; naming the next step turns it into an instruction.
+                        const blocker =
+                          !newTargetUrl || !isValidKleinanzeigenUrl(newTargetUrl)
+                            ? t('common.routeNeedsUrl')
+                            : !routeFrom && !routeTo
+                              ? t('common.routeNeedsBoth')
+                              : !routeFrom
+                                ? t('common.routeNeedsFrom')
+                                : !routeTo
+                                  ? t('common.routeNeedsTo')
+                                  : null;
+
+                        return (
+                          <div className="space-y-2">
+                            <button
+                              type="button"
+                              onClick={handlePlanCorridor}
+                              disabled={routePlanning || blocker !== null}
+                              aria-describedby={blocker ? 'route-blocker' : undefined}
+                              className="w-full rounded-xl bg-emerald-500/15 text-emerald-300 border border-emerald-500/20 px-4 py-3 text-base font-bold hover:bg-emerald-500/25 disabled:bg-slate-900/60 disabled:text-slate-600 disabled:border-slate-800 disabled:cursor-not-allowed transition-colors"
+                            >
+                              {routePlanning ? t('common.planningCorridor') : t('common.planCorridor')}
+                            </button>
+                            {blocker && !routePlanning && (
+                              <p id="route-blocker" className="text-2xs text-slate-500 text-center">{blocker}</p>
+                            )}
+                          </div>
+                        );
+                      })()}
 
                       {routeError && (
                         <div className="text-xs bg-rose-500/10 text-rose-400 px-3.5 py-2.5 rounded-xl border border-rose-500/10 font-bold animate-fadeIn">

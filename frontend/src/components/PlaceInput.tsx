@@ -1,0 +1,178 @@
+import { useState, useEffect, useRef, useId } from 'react'
+import { Input } from './ui/Input'
+
+export type Place = {
+  label: string
+  name: string
+  qualifier: string
+  state: string
+  postal_code: string
+  lat: number
+  lon: number
+}
+
+type Props = {
+  label: string
+  placeholder: string
+  value: Place | null
+  onChange: (place: Place | null) => void
+  emptyHint: string
+}
+
+/**
+ * A place field that offers what it knows instead of judging what was typed.
+ *
+ * The previous version took free text and resolved it when the form was
+ * submitted, which meant "Landsberg am Lech" came back as *Could not place
+ * 'Landsberg am Lech'. Give a postal code, or "Ort, Bundesland"* — after the
+ * fact, in the interface's vocabulary rather than the user's, and asking them to
+ * solve an ambiguity they never saw. There are two Landsbergs; only the person
+ * typing knows which one they meant.
+ *
+ * So the list is the answer. Every entry names its postal code and state, both
+ * Landsbergs appear, and picking one leaves nothing left to resolve. A place is
+ * chosen, not parsed.
+ */
+export default function PlaceInput({ label, placeholder, value, onChange, emptyHint }: Props) {
+  const [text, setText] = useState(value ? value.label : '')
+  const [matches, setMatches] = useState<Place[]>([])
+  const [open, setOpen] = useState(false)
+  const [active, setActive] = useState(0)
+  const [searching, setSearching] = useState(false)
+  const listId = useId()
+  const containerRef = useRef<HTMLDivElement>(null)
+  // Suppresses the lookup that a selection's own text change would otherwise
+  // trigger — picking a place should close the list, not repopulate it.
+  const skipNextLookup = useRef(false)
+
+  useEffect(() => {
+    if (skipNextLookup.current) {
+      skipNextLookup.current = false
+      return
+    }
+    if (text.trim().length < 2) {
+      setMatches([])
+      setSearching(false)
+      return
+    }
+
+    let cancelled = false
+    setSearching(true)
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/places/suggest?q=${encodeURIComponent(text)}`)
+        if (!res.ok || cancelled) return
+        const data = await res.json()
+        if (cancelled) return
+        setMatches(data.places || [])
+        setActive(0)
+        setOpen(true)
+      } catch {
+        if (!cancelled) setMatches([])
+      } finally {
+        if (!cancelled) setSearching(false)
+      }
+    }, 180)
+
+    return () => { cancelled = true; clearTimeout(timer) }
+  }, [text])
+
+  // Clicking away closes the list without choosing anything.
+  useEffect(() => {
+    if (!open) return
+    const onPointerDown = (event: MouseEvent) => {
+      if (!containerRef.current?.contains(event.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', onPointerDown)
+    return () => document.removeEventListener('mousedown', onPointerDown)
+  }, [open])
+
+  const choose = (place: Place) => {
+    skipNextLookup.current = true
+    setText(place.label)
+    setMatches([])
+    setOpen(false)
+    onChange(place)
+  }
+
+  const onKeyDown = (event: React.KeyboardEvent) => {
+    if (event.key === 'Escape') { setOpen(false); return }
+    if (!open || matches.length === 0) return
+
+    if (event.key === 'ArrowDown') {
+      event.preventDefault()
+      setActive(i => (i + 1) % matches.length)
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault()
+      setActive(i => (i - 1 + matches.length) % matches.length)
+    } else if (event.key === 'Enter') {
+      event.preventDefault()
+      choose(matches[active])
+    }
+  }
+
+  return (
+    <div className="space-y-1.5 relative" ref={containerRef}>
+      <label htmlFor={`${listId}-input`} className="text-2xs text-slate-500 font-bold uppercase tracking-wider block">
+        {label}
+      </label>
+      <Input
+        id={`${listId}-input`}
+        type="text"
+        role="combobox"
+        aria-expanded={open}
+        aria-controls={listId}
+        aria-autocomplete="list"
+        aria-activedescendant={open && matches.length ? `${listId}-${active}` : undefined}
+        autoComplete="off"
+        value={text}
+        onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+          setText(e.target.value)
+          // The typed text no longer describes the chosen place.
+          if (value) onChange(null)
+        }}
+        onFocus={() => { if (matches.length) setOpen(true) }}
+        onKeyDown={onKeyDown}
+        placeholder={placeholder}
+      />
+
+      {value ? (
+        <p className="text-2xs text-emerald-400 font-semibold">{value.label}</p>
+      ) : text.trim().length >= 2 && !searching && matches.length === 0 ? (
+        <p className="text-2xs text-slate-500">{emptyHint}</p>
+      ) : null}
+
+      {open && matches.length > 0 && (
+        <ul
+          id={listId}
+          role="listbox"
+          className="absolute z-30 left-0 right-0 top-full mt-1 max-h-64 overflow-y-auto rounded-xl border border-slate-855 bg-slate-950 shadow-2xl py-1"
+        >
+          {matches.map((place, index) => (
+            <li
+              key={`${place.postal_code}-${place.name}-${place.qualifier}`}
+              id={`${listId}-${index}`}
+              role="option"
+              aria-selected={index === active}
+              onMouseEnter={() => setActive(index)}
+              onMouseDown={e => { e.preventDefault(); choose(place) }}
+              className={`px-3 py-2 cursor-pointer flex items-baseline gap-2 ${
+                index === active ? 'bg-emerald-500/15' : ''
+              }`}
+            >
+              <span className="text-2xs font-mono text-slate-500 tabular-nums shrink-0">
+                {place.postal_code}
+              </span>
+              <span className="text-sm text-slate-200 font-semibold truncate">
+                {place.qualifier ? `${place.name} ${place.qualifier}` : place.name}
+              </span>
+              <span className="text-2xs text-slate-500 ml-auto shrink-0 truncate">
+                {place.state}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
