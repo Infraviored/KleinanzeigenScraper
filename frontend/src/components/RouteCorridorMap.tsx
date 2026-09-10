@@ -23,6 +23,9 @@ export interface RouteListingGeo {
   lon: number | null;
   detour_min: number | null;
   offroute_km: number | null;
+  // Why a detour is missing, which is not the same question as whether the
+  // listing has coordinates: 'too_far' and 'failed' both have them.
+  geo_status?: 'routed' | 'too_far' | 'unplaceable' | 'failed' | null;
   niceness_score: number | null;
   llm_processed?: boolean;
   images: string[];
@@ -122,15 +125,13 @@ export default function RouteCorridorMap({
       }
     });
 
-    listings.forEach((listing) => {
-      if (listing.lat !== null && listing.lon !== null) {
-        latLngs.push([listing.lat, listing.lon]);
-      }
-    });
-
     if (latLngs.length === 0) return null;
     return L.latLngBounds(latLngs);
-  }, [polyline, circles, listings]);
+    // Deliberately not keyed on `listings`. They arrive filtered, so a new
+    // array on every keystroke would rebuild the bounds and animate the map
+    // back to the full corridor while the user was reading one town. The route
+    // and its circles already describe the extent worth framing.
+  }, [polyline, circles]);
 
   const defaultCenter: [number, number] = polyline.length > 0
     ? polyline[Math.floor(polyline.length / 2)]
@@ -230,11 +231,14 @@ export default function RouteCorridorMap({
         {listings.map((l) => {
           if (l.lat === null || l.lon === null) return null;
           const isSelected = selectedListingId === l.id;
+          // Keyed by selection so React remounts only the two markers whose
+          // appearance actually changed, instead of handing every marker a new
+          // icon object by reference.
           const firstImg = l.images && l.images.length > 0 ? l.images[0] : null;
 
           return (
             <Marker
-              key={`listing-${l.id}`}
+              key={`listing-${l.id}-${isSelected ? 'sel' : 'idle'}`}
               position={[l.lat, l.lon]}
               icon={createListingIcon(l.detour_min, isSelected)}
               eventHandlers={{

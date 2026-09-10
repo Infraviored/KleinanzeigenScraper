@@ -67,14 +67,16 @@ jobs:
         run: python scripts/ci_ui_shots.py --db /tmp/fixture.db --out /tmp/ui-shots-mobile --width 480 --height 900
 
       # ── Visual regression ─────────────────────────────────────────────
+      # No `if:` guard. Conditioning this on baselines existing is what made it
+      # green while it had never run: with an empty baseline directory the step
+      # was skipped and the job reported success. visual_diff.py now fails on a
+      # missing baseline itself, which is the honest place for that decision.
       - name: Visual regression check (desktop)
-        if: hashFiles('screenshots/baseline/*.png') != ''
-        run: python scripts/visual_diff.py screenshots/baseline /tmp/ui-shots --threshold 0.1
+        run: python scripts/visual_diff.py screenshots/baseline /tmp/ui-shots --threshold 0.01
         continue-on-error: false
 
       - name: Visual regression check (mobile)
-        if: hashFiles('screenshots/baseline-mobile/*.png') != ''
-        run: python scripts/visual_diff.py screenshots/baseline-mobile /tmp/ui-shots-mobile --threshold 0.1
+        run: python scripts/visual_diff.py screenshots/baseline-mobile /tmp/ui-shots-mobile --threshold 0.01
         continue-on-error: false
 
       # ── Upload ────────────────────────────────────────────────────────

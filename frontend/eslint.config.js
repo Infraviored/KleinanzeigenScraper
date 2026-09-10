@@ -39,7 +39,7 @@ export default defineConfig([
       'no-restricted-syntax': [
         'error',
         {
-          selector: 'JSXAttribute[name.name="className"] > Literal[value=/text-\\[[0-9]+px\\]/]',
+          selector: 'JSXAttribute[name.name="className"] Literal[value=/text-\\[[0-9]+px\\]/]',
           message:
             'Hardcoded pixel text size (text-[...px]) used. Use the @theme type scale tokens (text-2xs, text-xs, text-sm, text-base, text-lg, text-xl) instead.',
         },
@@ -55,7 +55,7 @@ export default defineConfig([
         // Matching the shape of the mistake rather than the two instances of it
         // that happened to be found.
         {
-          selector: String.raw`JSXAttribute[name.name="className"] > Literal[value=/\b(?:bg|text|border|ring|from|via|to|fill|stroke|divide|outline|shadow|accent|caret|decoration|placeholder)-(?:slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)-(?!50\b|100\b|200\b|300\b|400\b|500\b|600\b|700\b|800\b|900\b|950\b)\d+/]`,
+          selector: String.raw`JSXAttribute[name.name="className"] Literal[value=/\b(?:bg|text|border|ring|from|via|to|fill|stroke|divide|outline|shadow|accent|caret|decoration|placeholder)-(?:slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)-(?!50\b|100\b|200\b|300\b|400\b|500\b|600\b|700\b|800\b|900\b|950\b)\d+/]`,
           message:
             'Tailwind has no such shade, so this class is silently discarded and the element renders unstyled. Valid shades are 50, 100-900 in hundreds, and 950 - or use a token from index.css.',
         },
@@ -63,6 +63,19 @@ export default defineConfig([
           selector: String.raw`JSXAttribute[name.name="className"] TemplateElement[value.raw=/\b(?:bg|text|border|ring|from|via|to|fill|stroke|divide|outline|shadow|accent|caret|decoration|placeholder)-(?:slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)-(?!50\b|100\b|200\b|300\b|400\b|500\b|600\b|700\b|800\b|900\b|950\b)\d+/]`,
           message:
             'Tailwind has no such shade, so this class is silently discarded and the element renders unstyled. Valid shades are 50, 100-900 in hundreds, and 950 - or use a token from index.css.',
+        },
+        // The transition-duration and -delay scales are equally fixed, and an
+        // invalid value is dropped the same silent way: the transition just
+        // never animates. duration-250 and duration-550 both shipped.
+        {
+          selector: String.raw`JSXAttribute[name.name="className"] Literal[value=/\b(?:duration|delay)-(?!0\b|75\b|100\b|150\b|200\b|300\b|500\b|700\b|1000\b)\d+/]`,
+          message:
+            'Tailwind has no such transition duration, so the class is discarded and nothing animates. Valid values are 0, 75, 100, 150, 200, 300, 500, 700, 1000.',
+        },
+        {
+          selector: String.raw`JSXAttribute[name.name="className"] TemplateElement[value.raw=/\b(?:duration|delay)-(?!0\b|75\b|100\b|150\b|200\b|300\b|500\b|700\b|1000\b)\d+/]`,
+          message:
+            'Tailwind has no such transition duration, so the class is discarded and nothing animates. Valid values are 0, 75, 100, 150, 200, 300, 500, 700, 1000.',
         },
         {
           selector: 'JSXElement > JSXText[value=/[a-zA-Z]{4,}/]',

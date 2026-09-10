@@ -66,7 +66,7 @@ export default function RouteResultsView({
 
   // Filters and sorting
   const [selectedDetourMax, setSelectedDetourMax] = useState<'all' | '15' | '30' | '60'>('all');
-  const [sortBy, setSortBy] = useState<'detour' | 'price' | 'date'>('detour');
+  const [sortBy, setSortBy] = useState<'detour' | 'price'>('detour');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedListingId, setSelectedListingId] = useState<string | null>(null);
 
@@ -93,11 +93,9 @@ export default function RouteResultsView({
     }
   }, [campaignId]);
 
-  useEffect(() => {
-    fetchRouteData();
-  }, [fetchRouteData]);
-
-  // Refresh when scraping finishes
+  // One effect, not two. Mounting used to run both of these — an unconditional
+  // fetch and an `isScraping === false` fetch — firing the same request twice
+  // on every mount. Keyed on isScraping, it still refreshes when a scrape ends.
   useEffect(() => {
     if (!isScraping) {
       fetchRouteData();
@@ -141,7 +139,7 @@ export default function RouteResultsView({
       if (sortBy === 'price') {
         return parsePrice(a.price) - parsePrice(b.price);
       }
-      return 0; // default database order
+      return 0; // detour order, as the backend returned it
     });
 
     return list;
@@ -163,7 +161,7 @@ export default function RouteResultsView({
           {error === 'no_route' ? t('dashboard.noSearches') : t('common.connectionIssueFailed')}
         </p>
         <Button variant="primary" size="sm" onClick={fetchRouteData}>
-          {t('common.cancel')}
+          {t('common.retry')}
         </Button>
       </Card>
     );
@@ -363,11 +361,10 @@ export default function RouteResultsView({
               <div className="w-full sm:w-44">
                 <Select
                   value={sortBy}
-                  onChange={(val) => setSortBy(val as 'detour' | 'price' | 'date')}
+                  onChange={(val) => setSortBy(val as 'detour' | 'price')}
                   options={[
                     { value: 'detour', label: t('routeResults.sortByDetour') },
                     { value: 'price', label: t('routeResults.sortByPrice') },
-                    { value: 'date', label: t('routeResults.sortByDate') },
                   ]}
                   className="text-xs py-1.5"
                 />
@@ -453,7 +450,11 @@ export default function RouteResultsView({
                                 </span>
                               ) : (
                                 <span className="text-2xs text-slate-500 font-mono">
-                                  {t('routeResults.unplacedCount', { count: 1 })}
+                                  {l.geo_status === 'too_far'
+                                    ? t('routeResults.offCorridor')
+                                    : l.geo_status === 'failed'
+                                      ? t('routeResults.detourUnknown')
+                                      : t('routeResults.noCoordinates')}
                                 </span>
                               )}
 

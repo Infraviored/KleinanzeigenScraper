@@ -251,6 +251,12 @@ def main():
             pass
 
     try:
+        if not os.path.exists(src_db):
+            raise SystemExit(
+                f"No database at {src_db}. This script photographs the running "
+                f"interface, so it needs one to copy; run the backend once to "
+                f"create it, or point PRISMDEALS_DB at an existing database."
+            )
         shutil.copy(src_db, db_path)
         if os.path.exists(wal_file) and os.path.getsize(wal_file) > 0:
             shutil.copy(wal_file, f"{db_path}-wal")

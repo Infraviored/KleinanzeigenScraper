@@ -129,7 +129,10 @@ async function main() {
   );
 
   // ── Seed listings ──────────────────────────────────────────────────
-  const now = new Date().toISOString();
+  // Fixed, not `new Date()`. This value is rendered onto every listing card,
+  // so a moving clock made each CI run differ from the committed baseline
+  // while nothing in the code had changed.
+  const now = '2026-01-01T12:00:00.000Z';
   const listings = [
     {
       id: 'fixture-001',

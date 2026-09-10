@@ -59,6 +59,13 @@ def build_driver(width, height):
         "--disable-gpu",
         "--disable-dev-shm-usage",
         "--hide-scrollbars",
+        # A pixel diff compares two moments. Anything that moves, loads late or
+        # renders differently between two runs becomes noise, and a check that
+        # cries wolf is a check somebody turns off.
+        "--force-prefers-reduced-motion",
+        "--font-render-hinting=none",
+        "--force-device-scale-factor=1",
+        "--disable-lcd-text",
     ):
         options.add_argument(flag)
     options.add_argument(f"--window-size={width},{height}")
@@ -67,7 +74,42 @@ def build_driver(width, height):
     return webdriver.Chrome(service=service, options=options)
 
 
+# Belt and braces alongside --force-prefers-reduced-motion: Tailwind's
+# animate-pulse and animate-spin do not ask whether motion is welcome, and a
+# spinner caught mid-turn differs from one caught a third of a turn later.
+FREEZE_MOTION = """
+const existing = document.getElementById('ci-freeze-motion');
+if (!existing) {
+  const style = document.createElement('style');
+  style.id = 'ci-freeze-motion';
+  style.textContent = `*, *::before, *::after {
+    animation-play-state: paused !important;
+    animation-delay: -1ms !important;
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    transition-delay: 0s !important;
+    caret-color: transparent !important;
+  }`;
+  document.head.appendChild(style);
+}
+"""
+
+
 def shoot(driver, out_dir, name, settle=1.0):
+    driver.execute_script(FREEZE_MOTION)
+    # The fonts come from a CDN. Captured before they land, the page is laid out
+    # in a fallback face with different metrics -- different line wraps, a
+    # different height, a diff against every baseline.
+    try:
+        driver.execute_async_script(
+            "const done = arguments[0];"
+            "if (document.fonts && document.fonts.ready) {"
+            "  document.fonts.ready.then(() => done(true));"
+            "} else { done(false); }"
+        )
+    except Exception:
+        pass
     time.sleep(settle)
     width = driver.get_window_size()["width"]
     height = driver.execute_script(
@@ -107,7 +149,15 @@ def walk(driver, base, out_dir, width, height):
         if "Unauthenticated" not in body and "Log In" not in body:
             break
     else:
-        print("  ! still unauthenticated - shots below are the logged-out view")
+        # Carrying on here is how an authentication regression became a green
+        # build: the run captured the login screen, found no campaigns, stopped
+        # early and exited 0, and the diff then compared the handful of images
+        # that happened to exist. If we cannot get in, say so and fail.
+        raise SystemExit(
+            "Could not sign in to the throwaway instance, so every screenshot "
+            "below would be of the logged-out view. Failing rather than "
+            "capturing a login screen and calling it the interface."
+        )
     driver.set_window_size(width, height)
 
     shoot(driver, out_dir, "02-landing")
@@ -116,7 +166,13 @@ def walk(driver, base, out_dir, width, height):
         "return fetch('/api/campaigns').then(r => r.json()).catch(() => [])"
     )
     if not isinstance(campaigns, list) or not campaigns:
-        print("  (no campaigns - stopping after landing)")
+        # The fixture database seeds campaigns. None here means the seed or the
+        # API is broken, not that there is nothing to photograph.
+        raise SystemExit(
+            "The fixture database reports no campaigns, so the views that "
+            "matter cannot be reached. Check scripts/seed_fixture_db.js and "
+            "GET /api/campaigns."
+        )
         return
 
     first = campaigns[0]

@@ -23,11 +23,14 @@ def pixel_diff_ratio(img_a, img_b):
     a = Image.open(img_a).convert("RGB")
     b = Image.open(img_b).convert("RGB")
 
-    # Resize to the smaller common size so dimension changes don't produce 100% diff
+    # Crop to the shared canvas rather than resize onto it. Resizing rescales
+    # the whole image, so a page that grew fifty pixels taller interpolates
+    # every row and reports a near-total difference on pixels nothing touched.
+    # A change in size is itself worth reporting, and the caller does that.
     w = min(a.width, b.width)
     h = min(a.height, b.height)
-    a = a.resize((w, h))
-    b = b.resize((w, h))
+    a = a.crop((0, 0, w, h))
+    b = b.crop((0, 0, w, h))
 
     a_pixels = list(a.getdata())
     b_pixels = list(b.getdata())
@@ -68,10 +71,23 @@ def main():
         f for f in os.listdir(args.current_dir) if f.endswith(".png")
     )
     if not current_files:
-        print("No .png files found in current dir.")
-        sys.exit(0)
+        print(
+            "No .png files in the capture directory. The screenshot harness "
+            "produced nothing, which is a failure of the harness rather than "
+            "evidence that the interface is unchanged."
+        )
+        sys.exit(1)
 
-    has_baselines = os.path.isdir(args.baseline_dir)
+    has_baselines = os.path.isdir(args.baseline_dir) and any(
+        f.endswith(".png") for f in os.listdir(args.baseline_dir)
+    )
+    if not has_baselines:
+        print(
+            f"No baseline screenshots in {args.baseline_dir}. There is nothing "
+            f"to compare against, so this check can only pass vacuously. Commit "
+            f"baselines (see screenshots/README) before relying on it."
+        )
+        sys.exit(1)
     failures = []
     results = []
 

@@ -274,6 +274,39 @@ describe('PlaceInput', () => {
     expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
   });
 
+  it('follows the value prop when the parent swaps in a different place', () => {
+    // There are two Landsbergs, and a parent that corrects one to the other is
+    // the ordinary case. The synchronisation effect used to look only for the
+    // value going null, so the field went on showing the first place while the
+    // application held the second — and the existing test, which only cleared
+    // to null, passed the whole time.
+    const { rerender } = render(
+      <PlaceInput
+        label="Origin"
+        placeholder="Search..."
+        value={mockPlaces[0]}
+        onChange={vi.fn()}
+        emptyHint="No matches"
+      />
+    );
+
+    const input = screen.getByRole('combobox');
+    expect(input).toHaveValue(mockPlaces[0].label);
+
+    rerender(
+      <PlaceInput
+        label="Origin"
+        placeholder="Search..."
+        value={mockPlaces[1]}
+        onChange={vi.fn()}
+        emptyHint="No matches"
+      />
+    );
+
+    expect(input).toHaveValue(mockPlaces[1].label);
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+  });
+
   it('calls onChange(null) when user modifies text after selecting a place', async () => {
     const onChange = vi.fn();
     render(

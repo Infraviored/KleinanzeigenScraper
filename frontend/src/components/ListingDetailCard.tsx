@@ -404,7 +404,7 @@ export default function ListingDetailCard({
                       </div>
                       <div className="w-full bg-bg-input rounded-full h-1.5 overflow-hidden border border-border-subtle relative">
                         <div 
-                          className={cn("h-full transition-all duration-550 shadow-inner", barColor)}
+                          className={cn("h-full transition-all duration-500 shadow-inner", barColor)}
                           style={{ width: `${percentage}%` }} 
                         />
                       </div>

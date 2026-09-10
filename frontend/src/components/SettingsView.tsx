@@ -246,12 +246,12 @@ export default function SettingsView({ onBack }: SettingsViewProps) {
                 role="switch"
                 aria-checked={autoAiEval}
                 onClick={() => setAutoAiEval(!autoAiEval)}
-                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-250 ease-in-out focus:outline-none focus:ring-2 focus:ring-emerald-500/50 ${
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-emerald-500/50 ${
                   autoAiEval ? 'bg-emerald-500' : 'bg-slate-800'
                 }`}
               >
                 <span
-                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-slate-100 shadow-md ring-0 transition duration-250 ease-in-out ${
+                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-slate-100 shadow-md ring-0 transition duration-200 ease-in-out ${
                     autoAiEval ? 'translate-x-5' : 'translate-x-0'
                   }`}
                 />
@@ -277,12 +277,12 @@ export default function SettingsView({ onBack }: SettingsViewProps) {
                 role="switch"
                 aria-checked={fullFetchOnStartup}
                 onClick={() => setFullFetchOnStartup(!fullFetchOnStartup)}
-                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-250 ease-in-out focus:outline-none focus:ring-2 focus:ring-emerald-500/50 ${
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-emerald-500/50 ${
                   fullFetchOnStartup ? 'bg-emerald-500' : 'bg-slate-800'
                 }`}
               >
                 <span
-                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-slate-100 shadow-md ring-0 transition duration-250 ease-in-out ${
+                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-slate-100 shadow-md ring-0 transition duration-200 ease-in-out ${
                     fullFetchOnStartup ? 'translate-x-5' : 'translate-x-0'
                   }`}
                 />

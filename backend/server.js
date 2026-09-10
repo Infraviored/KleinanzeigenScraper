@@ -43,6 +43,54 @@ db.run('PRAGMA foreign_keys = ON;');
 
 // Perform database schema migration on startup (non-destructive)
 db.serialize(() => {
+  // The route corridor tables. Their definition also lives in
+  // scraper/route_store.py, which is what created them until now — meaning any
+  // install that had never planned a route did not have them, and the very
+  // first screen queries route_searches. That is a 500 on the campaign
+  // dashboard of every fresh installation. Creating them here as well costs
+  // nothing on an existing database and removes the ordering dependency.
+  //
+  // Kept byte-identical to the Python definition on purpose: two CREATE TABLE
+  // statements that drift apart are worse than one in the wrong place.
+  db.run(`
+    CREATE TABLE IF NOT EXISTS route_searches (
+      id              INTEGER PRIMARY KEY AUTOINCREMENT,
+      name            TEXT,
+      campaign_id     INTEGER,
+      knowledge_set_id INTEGER,
+      base_url        TEXT NOT NULL,
+      origin          TEXT NOT NULL,
+      destination     TEXT NOT NULL,
+      radius_km       REAL NOT NULL,
+      half_width_km   REAL NOT NULL,
+      plan_json       TEXT NOT NULL,
+      created_at      TEXT NOT NULL
+    )
+  `);
+  db.run(`
+    CREATE TABLE IF NOT EXISTS route_search_circles (
+      route_search_id INTEGER NOT NULL,
+      search_id       INTEGER NOT NULL,
+      location_id     TEXT,
+      label           TEXT,
+      radius_km       REAL,
+      PRIMARY KEY (route_search_id, search_id)
+    )
+  `);
+  db.run(`
+    CREATE TABLE IF NOT EXISTS listing_route_geo (
+      listing_id      TEXT NOT NULL,
+      route_search_id INTEGER NOT NULL,
+      lat             REAL,
+      lon             REAL,
+      offroute_km     REAL,
+      detour_min      REAL,
+      status          TEXT NOT NULL DEFAULT 'routed',
+      computed_at     TEXT NOT NULL,
+      PRIMARY KEY (listing_id, route_search_id)
+    )
+  `);
+
   // Create users table and seed default user if empty
   db.run(`
     CREATE TABLE IF NOT EXISTS users (
@@ -608,10 +656,26 @@ app.post('/api/route-searches', (req, res) => {
 
   let stdout = '';
   let stderr = '';
+  let replied = false;
   python.stdout.on('data', (data) => { stdout += data; });
   python.stderr.on('data', (data) => { stderr += data; });
 
+  // A ChildProcess that cannot be launched at all — a missing venv, a binary
+  // without the execute bit — emits 'error', and an unhandled 'error' event
+  // ends the Node process. Planning a route would take the whole API down.
+  python.on('error', (err) => {
+    console.error('Could not start the route planner:', err);
+    if (replied) return;
+    replied = true;
+    res.status(500).json({ error: 'Could not start the route planner.' });
+  });
+
   python.on('close', async (code) => {
+    // 'error' fires before 'close' when the binary never started, and it has
+    // already answered the request.
+    if (replied) return;
+    replied = true;
+
     // Planning talks to two outside services — routing and location lookup —
     // so a failure here is ordinary, not exceptional. The planner's own message
     // says which place could not be resolved, and that is what the user needs
@@ -676,9 +740,17 @@ async function getRouteCorridorPayload(route) {
 
   const planCircles = plan.circles || [];
   const enrichedCircles = circles.map((circle, index) => {
-    const planCircle = planCircles.find(
-      pc => String(pc.location_id) === String(circle.location_id) || pc.label === circle.label
-    ) || planCircles[index] || {};
+    // Only match on a location_id that actually exists. Comparing them as
+    // strings made String(null) equal String(null), so every circle the
+    // planner could not tie to a place matched the first such circle in the
+    // plan and inherited its coordinates — a row of pins stacked on one town.
+    // A null label matches nothing for the same reason.
+    const planCircle = planCircles.find(pc => {
+      if (circle.location_id != null && pc.location_id != null) {
+        return String(pc.location_id) === String(circle.location_id);
+      }
+      return circle.label != null && pc.label === circle.label;
+    }) || planCircles[index] || {};
     return {
       ...circle,
       lat: planCircle.lat ?? null,
@@ -687,17 +759,30 @@ async function getRouteCorridorPayload(route) {
     };
   });
 
+  // Scoped by the route's own circles, not by the campaign. Two reasons, both
+  // of which produce a wrong list rather than an error:
+  //
+  //   A route search may have no campaign (campaign_id is nullable), and
+  //   `s.campaign_id = NULL` is never true in SQL, so the corridor would come
+  //   back empty while plainly having circles and listings.
+  //
+  //   A campaign may hold ordinary searches alongside the corridor. Those
+  //   listings have no row in listing_route_geo, so they arrive with a null
+  //   detour and get shown as corridor finds that could not be placed.
+  //
+  // The Python side already scopes it this way (scraper/route_store.py).
   const listings = await query(
     `SELECT l.id, l.title, l.price, l.location, l.url, l.images,
             l.extracted_facts, l.niceness_score, l.llm_processed, l.search_id,
             s.name as search_name,
             g.lat, g.lon, g.offroute_km, g.detour_min, g.status as geo_status
        FROM listings l
+       JOIN route_search_circles c
+         ON c.search_id = l.search_id AND c.route_search_id = ?
        JOIN searches s ON l.search_id = s.id
        LEFT JOIN listing_route_geo g ON g.listing_id = l.id AND g.route_search_id = ?
-      WHERE s.campaign_id = ?
       ORDER BY (g.detour_min IS NULL) ASC, g.detour_min ASC, l.id DESC`,
-    [route.id, route.campaign_id]
+    [route.id, route.id]
   );
 
   const parsedListings = listings.map(l => ({
@@ -766,6 +851,19 @@ app.get('/api/route-searches/:id', async (req, res) => {
 // API: Delete search item
 app.delete('/api/searches/:id', async (req, res) => {
   try {
+    // The route tables carry no foreign keys — SQLite cannot add one to a table
+    // that already exists, and these are live in every install. So the rows
+    // that reference a search are removed by hand, exactly as deleting a
+    // campaign does. Left behind, a circle row keeps pointing at a search that
+    // is gone, and the corridor read joins it away: the circle simply vanishes
+    // from the map with nothing to say why.
+    await run(
+      `DELETE FROM listing_route_geo
+        WHERE listing_id IN (SELECT id FROM listings WHERE search_id = ?)`,
+      [req.params.id]
+    ).catch(() => {});
+    await run('DELETE FROM route_search_circles WHERE search_id = ?', [req.params.id])
+      .catch(() => {});
     await run('DELETE FROM searches WHERE id = ?', [req.params.id]);
     res.json({ success: true });
   } catch (error) {

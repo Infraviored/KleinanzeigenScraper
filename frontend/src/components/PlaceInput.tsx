@@ -51,13 +51,20 @@ export default function PlaceInput({ label, placeholder, value, onChange, emptyH
   // form does after planning a corridor — has to clear what is on screen too,
   // or the input keeps showing a place the application no longer holds.
   useEffect(() => {
-    if (value === null && text !== '') {
+    // Both directions matter. Clearing the value from outside — which the form
+    // does after planning a corridor — has to clear the field. But a parent
+    // that swaps in a *different* place has to be followed too: this used to
+    // check only for null, so `text` kept its first value and the field went
+    // on showing a town the application no longer held.
+    const wanted = value ? value.label : ''
+    if (wanted !== text) {
       skipNextLookup.current = true
-      setText('')
+      setText(wanted)
       setMatches([])
       setOpen(false)
     }
-    // Only reacting to the value going away; typing is handled below.
+    // Keyed on the value alone: including `text` would undo the user's typing
+    // on the very next render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value])
 
