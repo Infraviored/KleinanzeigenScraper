@@ -27,12 +27,25 @@ repos:
         pass_filenames: false
         files: ^(frontend/src/.*|scripts/check_translations\.js)$
 
+      - id: tsc-check
+        name: TypeScript Check (fast)
+        entry: bash -c 'cd frontend && npx tsc -b --noEmit'
+        language: system
+        pass_filenames: false
+        files: ^frontend/src/.*\.[jt]sx?$
+        types: [file]
+
+      - id: vitest
+        name: Vitest (component tests)
+        entry: bash -c 'cd frontend && npm test'
+        language: system
+        pass_filenames: false
+        files: ^frontend/src/.*\.[jt]sx?$
+        types: [file]
+
       - id: tsc-build
         name: TypeScript Compile Check
         entry: bash -c 'cd frontend && npm run build'
         language: system
         pass_filenames: false
         stages: [pre-push]
-
-
-

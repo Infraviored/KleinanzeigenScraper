@@ -1,0 +1,11 @@
+{
+  "users": [
+    {
+      "id": "508c42bd-e1f6-4b4a-96e1-44e2db2efe0c",
+      "username": "florian",
+      "password_hash": "68fb23912783d62e30e97dca9e0d40e320317bb0c18300b2efdca7a49f9daf81",
+      "salt": "597c2c345f784ff9",
+      "role": "admin"
+    }
+  ]
+}
