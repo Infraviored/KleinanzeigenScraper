@@ -1493,7 +1493,7 @@ export default function App() {
                     size="sm"
                     onClick={handleStartScrape}
                     disabled={isScraping || isProcessing}
-                    className="flex-1 min-w-[9.5rem] py-2.5 px-3 text-center flex items-center justify-center gap-1.5"
+                    className="min-w-[9.5rem] py-2.5 px-3 text-center flex items-center justify-center gap-1.5"
                   >
                     <Search className="w-3.5 h-3.5" />
                     <span>{t('dashboard.fetchFresh')}</span>
@@ -1503,7 +1503,7 @@ export default function App() {
                     size="sm"
                     onClick={handleStartDeepUpdate}
                     disabled={isScraping || isProcessing}
-                    className="flex-1 min-w-[9.5rem] py-2.5 px-3 text-center flex items-center justify-center gap-1.5"
+                    className="min-w-[9.5rem] py-2.5 px-3 text-center flex items-center justify-center gap-1.5"
                   >
                     <RefreshCw className="w-3.5 h-3.5" />
                     <span>{t('dashboard.updateDesc')}</span>
@@ -1513,7 +1513,7 @@ export default function App() {
                     size="sm"
                     onClick={handleStartProcess}
                     disabled={isScraping || isProcessing}
-                    className="flex-1 min-w-[9.5rem] py-2.5 px-3 text-center flex items-center justify-center gap-1.5"
+                    className="min-w-[9.5rem] py-2.5 px-3 text-center flex items-center justify-center gap-1.5"
                   >
                     <Sparkles className="w-3.5 h-3.5" />
                     <span>{t('dashboard.autoAi')}</span>
