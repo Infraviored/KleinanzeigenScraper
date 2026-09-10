@@ -100,6 +100,7 @@ Logistik, Preisreferenz.
 | P7 | Vision (Rost, Gebrauchsspuren, Maße, Bild-Text-Abgleich) | offen |
 | P8 | Alarm in Minuten, Verhandlungsentwurf aus Dossier-Lücken | offen |
 | P9 | Evaluationsrahmen: Goldstandard, Regression, Kostenbudget | offen |
+| P10 | **Korridorsuche entlang einer Route, Rang nach Umweg** | **erledigt** |
 
 ### P2 — offene Playbooks
 Fertig: Laptops (v2), Autos, Motorräder, Handys.
@@ -138,10 +139,49 @@ Rückfrage wert.
 Offen: die Kaufabsicht im Gespräch erheben. Bis dahin erzeugt
 `scripts/make_intent.py` ein editierbares Startprofil aus einem Playbook.
 
+### P10 — Korridorsuche entlang einer Route
+Eine Plattformsuche hängt an einem Ort, eine Fahrt ist eine Linie. Die
+verbindende Größe ist nicht die Entfernung, sondern der Umweg:
+`Fahrt(A→Anzeige→B) − Fahrt(A→B)`.
+
+Gemessen Landsberg am Lech → Konstanz: ein Schrank in Salem liegt 15,6 km von
+der Route und 74 km per Straße — die Strecke läuft am Südufer des Bodensees,
+Salem am Nordufer. Ein Radiusfilter nennt das nah und kostet 2,5 Stunden.
+
+Den Korridor überdecken statt die Route abtasten: aus Radius `r` und Halbbreite
+`w` folgt `d = 2·√(r²−w²)`, der Punkt mittig zwischen zwei Kreisen am
+Korridorrand liegt dann exakt auf beiden. Für diese Route: **5 Suchen statt 14**
+— gegen einen Bot-Schutz, der nach einer Handvoll Abrufe greift, ist das die
+eigentliche Währung.
+
+Drei Messungen tragen die Umsetzung:
+- Der Radius in der URL ist frei wählbar, nicht auf die Dropdown-Werte
+  beschränkt (`r17` wird so bereitwillig geliefert wie `r25`). Deshalb kann
+  jeder Kreis seine eigene Einrast-Verschiebung bezahlen — pro Kreis, denn der
+  Mittelpunkt bei Lindau landet im Bodensee und schnappt 12 km.
+- Nur das Endsegment `k…c…l…r…` entscheidet, was gesucht wird; der lesbare Pfad
+  ist Dekoration.
+- Es gibt **keine offene Such-API** (`api.kleinanzeigen.de` → 401, kein
+  eingebetteter State), also HTML — verankert an `data-adid` und JSON-LD statt
+  an CSS-Klassen.
+
+Eine Routensuche ist N gewöhnliche Suchen mit einem Knowledge-Set. Planung und
+Umweg-Berechnung sind getrennt, damit der Routing-Dienst nie im Pfad des
+Scrapers liegt.
+
+**Offen:** Darstellung im Frontend. Die Karte existiert bisher nur als
+Artifact: <https://claude.ai/code/artifact/03e86861-1899-4194-8442-a320092913e4>
+
 ---
 
 ## Risiken
 
+- **Parser-Bruch.** Die Trefferliste hing an CSS-Klassen und brach beim
+  Tailwind-Umbau still: `.aditem-main--top--left` kommt auf einer aktuellen
+  Seite null Mal vor. Dazu kam eine falsche Zeichenkodierung — die Seite sendet
+  `text/html` ohne charset, HTTP-Standard ist dann latin-1, die Seite ist UTF-8.
+  Beides lief lange unbemerkt, weil kein Test gegen eine echte Seite prüfte.
+  Deshalb liegen jetzt getrimmte Live-Seiten als Fixtures im Repo.
 - **Plattformzugang.** Der Bot-Schutz greift nach wenigen Abrufen. Vor P6 muss
   geklärt sein, wie Zugang im nötigen Umfang legitim erfolgt.
 - **Haftung.** Prüfpunkte und Belege liefern, keine Urteile fällen.
