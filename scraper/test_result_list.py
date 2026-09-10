@@ -122,3 +122,68 @@ def test_the_federal_state_disambiguates_repeated_town_names():
 def test_an_ambiguous_town_without_a_state_resolves_to_nothing():
     """A listing with no detour is honest; one with a 600 km error is not."""
     assert geo.places().coordinates("Salem") is None
+
+
+# --- the repair to scraper.py --------------------------------------------
+
+
+def test_the_old_selectors_find_nothing_on_a_current_page(with_carousel):
+    """The reason scraper.py had to change, kept as a regression guard: if these
+    ever match again the site has rolled back, and the note in the module
+    docstring is no longer true."""
+    from bs4 import BeautifulSoup
+
+    soup = BeautifulSoup(with_carousel, "html.parser")
+
+    assert soup.select("ul#srchrslt-adtable li.ad-listitem") == []
+    assert soup.select("article.aditem") == []
+    assert soup.select(".aditem-main--top--left") == []
+    # The list element itself is still there; only the class names went away.
+    assert soup.select("ul#srchrslt-adtable li")
+
+
+def test_scraper_shapes_listings_the_way_the_database_expects(with_carousel):
+    """main.py inserts these keys by name, so the shape is a contract."""
+    listing = result_list.as_db_listing(result_list.parse(with_carousel)[0])
+
+    for key in (
+        "id",
+        "title",
+        "price",
+        "location",
+        "url",
+        "short_description",
+        "detailed_description",
+    ):
+        assert key in listing, key
+    assert listing["price"] == "60 €"
+    assert listing["location"] == "Bayern - Landsberg (Lech)"
+    assert listing["url"].startswith("https://www.kleinanzeigen.de/")
+
+
+def test_the_structured_fields_travel_alongside_the_legacy_strings(with_carousel):
+    """So the route corridor can geocode without re-parsing "Bayern - Ort"."""
+    listing = result_list.as_db_listing(result_list.parse(with_carousel)[0])
+
+    assert listing["price_eur"] == 60
+    assert listing["place"] == "Landsberg (Lech)"
+    assert listing["state"] == "Bayern"
+    assert geo.places().coordinates(listing["place"], listing["state"]) is not None
+
+
+def test_a_listing_without_a_price_yields_an_empty_string_not_the_word_none():
+    listing = result_list.as_db_listing(
+        {
+            "id": "1",
+            "url": "https://x/y",
+            "title": "t",
+            "description": None,
+            "price_eur": None,
+            "location": None,
+            "state": None,
+        }
+    )
+
+    assert listing["price"] == ""
+    assert listing["location"] == ""
+    assert listing["short_description"] == ""

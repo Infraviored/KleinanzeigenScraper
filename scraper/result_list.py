@@ -152,3 +152,32 @@ def parse(page_html):
             }
         )
     return listings
+
+
+def as_db_listing(parsed):
+    """Shapes a parsed card the way the listings table and the legacy code expect.
+
+    The old parser stored `price` and `location` as the strings it scraped off the
+    page ("60 €", "Bayern - Landsberg (Lech)"), and the frontend and scoring both
+    read them that way. Those strings are rebuilt here rather than changing the
+    schema, so repairing the parser stays a repair: the structured fields travel
+    alongside under their own keys, for the code that wants numbers.
+    """
+    price = parsed.get("price_eur")
+    location = parsed.get("location") or ""
+    state = parsed.get("state")
+
+    return {
+        "id": parsed["id"],
+        "title": parsed.get("title") or "",
+        "price": f"{price} €" if price is not None else "",
+        "short_description": parsed.get("description") or "",
+        "location": f"{state} - {location}" if state and location else location,
+        "url": parsed["url"],
+        "detailed_description": "",
+        "llm_processed": False,
+        # Structured forms, for anything that would otherwise re-parse the above.
+        "price_eur": price,
+        "place": parsed.get("location"),
+        "state": state,
+    }
