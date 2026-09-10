@@ -1,5 +1,5 @@
 /* eslint-disable react-hooks/set-state-in-effect */
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import type { Campaign, KnowledgeSet, SearchTarget, Listing, SampleListing } from './types'
 import ScraperProgressCard from './components/ScraperProgressCard'
 import ListingDetailCard from './components/ListingDetailCard'
@@ -106,6 +106,18 @@ export default function App() {
   // Inline forms
   const [newCampaignName, setNewCampaignName] = useState('')
   const [newTargetUrl, setNewTargetUrl] = useState('')
+  // Route corridor search. `routeMode` also suppresses the debounced
+  // auto-registration below: a corridor is several searches, and registering the
+  // pasted URL as a single one the moment it looks valid would quietly give the
+  // user the point search they were trying not to make.
+  const [routeMode, setRouteMode] = useState(false)
+  const [routeFrom, setRouteFrom] = useState('')
+  const [routeTo, setRouteTo] = useState('')
+  const [routeRadiusKm, setRouteRadiusKm] = useState(30)
+  const [routeCorridorKm, setRouteCorridorKm] = useState(15)
+  const [routePlanning, setRoutePlanning] = useState(false)
+  const [routeError, setRouteError] = useState<string | null>(null)
+  const [routeResult, setRouteResult] = useState<{ count: number; width: number } | null>(null)
   const [isEditingCampaignName, setIsEditingCampaignName] = useState(false)
 
   // Step wizard states for Guidelines Editor
@@ -427,8 +439,84 @@ export default function App() {
     }
   }
 
+  const handlePlanCorridor = useCallback(async () => {
+    if (!newTargetUrl || !isValidKleinanzeigenUrl(newTargetUrl)) {
+      setRouteError(t('common.routeNeedsUrl'));
+      return;
+    }
+    if (!routeFrom.trim() || !routeTo.trim()) {
+      setRouteError(t('common.routeNeedsBoth'));
+      return;
+    }
+
+    setRoutePlanning(true);
+    setRouteError(null);
+    setRouteResult(null);
+
+    try {
+      const suggested = suggestTitleFromUrl(newTargetUrl) || 'New Search';
+
+      // The corridor's searches share one profile, or each circle would be
+      // scored against different criteria for the same thing.
+      const ksRes = await fetch('/api/knowledge-sets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: `${suggested} Guidelines`,
+          expert_knowledge: '',
+          item_json: {}
+        })
+      });
+      const boundKsId = ksRes.ok ? (await ksRes.json()).id : null;
+
+      const res = await fetch('/api/route-searches', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          campaign_id: currentCampaignId,
+          base_url: newTargetUrl,
+          origin: routeFrom.trim(),
+          destination: routeTo.trim(),
+          radius_km: routeRadiusKm,
+          corridor_km: routeCorridorKm,
+          knowledge_set_id: boundKsId,
+          name: `${suggested}: ${routeFrom.trim()} → ${routeTo.trim()}`
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        setRouteError(data.error || t('common.targetRegistrationFailed'));
+        return;
+      }
+
+      setRouteResult({
+        count: (data.searches || []).length,
+        width: (data.corridor_km || routeCorridorKm) * 2
+      });
+      setNewTargetUrl('');
+      setRouteFrom('');
+      setRouteTo('');
+      setIsRegisteringTarget(false);
+
+      if (data.searches && data.searches.length) {
+        setCurrentSearchId(data.searches[0].id);
+      }
+      refreshAll();
+    } catch {
+      setRouteError(t('common.connectionIssueFailed'));
+    } finally {
+      setRoutePlanning(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [newTargetUrl, routeFrom, routeTo, routeRadiusKm, routeCorridorKm, currentCampaignId]);
+
   // Debounced auto-registration and count fetch
   useEffect(() => {
+    if (routeMode) {
+      // A corridor is registered deliberately, not the moment a URL looks valid.
+      return;
+    }
     if (!newTargetUrl || !isValidKleinanzeigenUrl(newTargetUrl)) {
       return;
     }
@@ -517,7 +605,7 @@ export default function App() {
 
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [newTargetUrl, currentCampaignId, searches, isRegisteringTarget]);
+  }, [newTargetUrl, currentCampaignId, searches, isRegisteringTarget, routeMode]);
 
 
 
@@ -1518,8 +1606,118 @@ export default function App() {
                     />
                   </div>
 
+                  {/* Where to search: around the URL's own place, or along a drive. */}
+                  <div className="flex rounded-xl bg-slate-950/60 border border-slate-855 p-1 text-xs font-bold">
+                    {[
+                      { key: false, label: t('common.searchModePoint') },
+                      { key: true, label: t('common.searchModeRoute') },
+                    ].map(mode => (
+                      <button
+                        key={String(mode.key)}
+                        type="button"
+                        onClick={() => { setRouteMode(mode.key); setRouteError(null); }}
+                        aria-pressed={routeMode === mode.key}
+                        className={`flex-1 rounded-lg px-3 py-2 transition-colors ${
+                          routeMode === mode.key
+                            ? 'bg-emerald-500/15 text-emerald-300'
+                            : 'text-slate-400 hover:text-slate-200'
+                        }`}
+                      >
+                        {mode.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {routeMode && (
+                    <div className="bg-slate-950/60 border border-slate-855 rounded-2xl p-4 space-y-4 shadow-inner animate-fadeIn">
+                      <p className="text-xs text-slate-400 leading-relaxed">{t('common.routeExplainer')}</p>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="space-y-1.5">
+                          <label htmlFor="route-from" className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">{t('common.routeFrom')}</label>
+                          <Input
+                            id="route-from"
+                            type="text"
+                            value={routeFrom}
+                            onChange={e => setRouteFrom(e.target.value)}
+                            placeholder={t('common.routePlaceholder')}
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <label htmlFor="route-to" className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">{t('common.routeTo')}</label>
+                          <Input
+                            id="route-to"
+                            type="text"
+                            value={routeTo}
+                            onChange={e => setRouteTo(e.target.value)}
+                            placeholder={t('common.routePlaceholder')}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1.5">
+                          <label htmlFor="route-corridor" className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">
+                            {t('common.routeCorridor')}: <span className="text-slate-300 font-mono">{routeCorridorKm} km</span>
+                          </label>
+                          <input
+                            id="route-corridor"
+                            type="range"
+                            min={5}
+                            max={routeRadiusKm - 5}
+                            step={5}
+                            value={routeCorridorKm}
+                            onChange={e => setRouteCorridorKm(Number(e.target.value))}
+                            className="w-full accent-emerald-500"
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <label htmlFor="route-radius" className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">
+                            {t('common.routeRadius')}: <span className="text-slate-300 font-mono">{routeRadiusKm} km</span>
+                          </label>
+                          <input
+                            id="route-radius"
+                            type="range"
+                            min={20}
+                            max={60}
+                            step={5}
+                            value={routeRadiusKm}
+                            onChange={e => {
+                              const next = Number(e.target.value);
+                              setRouteRadiusKm(next);
+                              // A corridor at least as wide as the circles cannot
+                              // be covered at any spacing, so it cannot be asked for.
+                              if (routeCorridorKm > next - 5) setRouteCorridorKm(next - 5);
+                            }}
+                            className="w-full accent-emerald-500"
+                          />
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={handlePlanCorridor}
+                        disabled={routePlanning}
+                        className="w-full rounded-xl bg-emerald-500/15 text-emerald-300 border border-emerald-500/20 px-4 py-2.5 text-sm font-bold hover:bg-emerald-500/25 disabled:opacity-50 transition-colors"
+                      >
+                        {routePlanning ? t('common.planningCorridor') : t('common.planCorridor')}
+                      </button>
+
+                      {routeError && (
+                        <div className="text-xs bg-rose-500/10 text-rose-400 px-3.5 py-2.5 rounded-xl border border-rose-500/10 font-bold animate-fadeIn">
+                          {routeError}
+                        </div>
+                      )}
+                      {routeResult && (
+                        <div className="text-xs bg-emerald-500/10 text-emerald-400 px-3.5 py-2.5 rounded-xl border border-emerald-500/10 font-bold animate-fadeIn">
+                          {t('common.corridorPlanned', { count: routeResult.count, width: routeResult.width })}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {/* Reactive Indicators Panel */}
-                  {newTargetUrl && (
+                  {!routeMode && newTargetUrl && (
                     <div className="bg-slate-950/60 border border-slate-855 rounded-2xl p-4 space-y-3 shadow-inner animate-fadeIn">
                       <div className="text-xs font-bold text-slate-400 border-b border-slate-900 pb-1.5 flex justify-between items-center">
                         <span>{t('common.diagnostics')}</span>

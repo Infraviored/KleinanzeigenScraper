@@ -483,6 +483,103 @@ app.post('/api/searches', async (req, res) => {
   }
 });
 
+// API: Plan a route corridor and register its circles as ordinary searches.
+//
+// A route search is not a new kind of search: the planner turns one search URL
+// into the few whose circles cover the corridor, and each of those is written
+// into `searches` like any other. So everything downstream — crawling,
+// extraction, scoring, this API — keeps working without knowing routes exist,
+// and the caller gets back plain search rows.
+app.post('/api/route-searches', (req, res) => {
+  const {
+    campaign_id,
+    base_url,
+    origin,
+    destination,
+    radius_km,
+    corridor_km,
+    knowledge_set_id,
+    name,
+  } = req.body;
+
+  if (!campaign_id || !base_url || !origin || !destination) {
+    return res.status(400).json({
+      error: 'Missing campaign_id, base_url, origin or destination',
+    });
+  }
+  if (!isValidScrapeUrl(base_url)) {
+    return res.status(400).json({
+      error: 'Invalid search target URL. Only Kleinanzeigen URLs are allowed.',
+    });
+  }
+
+  const pythonExecutable = path.join(__dirname, '..', '.venv', 'bin', 'python3');
+  const args = [
+    path.join(__dirname, '..', 'scraper', 'main.py'),
+    '--mode', 'route-create',
+    '--urls', base_url,
+    '--from', String(origin),
+    '--to', String(destination),
+    '--campaign-id', String(campaign_id),
+  ];
+  if (radius_km) args.push('--radius-km', String(radius_km));
+  if (corridor_km) args.push('--corridor-km', String(corridor_km));
+  if (knowledge_set_id) args.push('--knowledge-set-id', String(knowledge_set_id));
+  if (name) args.push('--route-name', String(name));
+
+  const python = spawn(pythonExecutable, args, { env: { ...process.env } });
+
+  let stdout = '';
+  let stderr = '';
+  python.stdout.on('data', (data) => { stdout += data; });
+  python.stderr.on('data', (data) => { stderr += data; });
+
+  python.on('close', async (code) => {
+    // Planning talks to two outside services — routing and location lookup —
+    // so a failure here is ordinary, not exceptional. The planner's own message
+    // says which place could not be resolved, and that is what the user needs
+    // to see rather than a generic failure.
+    if (code !== 0) {
+      const reason = (stderr.match(/ValueError: (.+)/) || [])[1];
+      console.error('Route planning failed:', stderr);
+      return res.status(400).json({
+        error: reason || 'Could not plan this route.',
+      });
+    }
+
+    const routeMatch = stdout.match(/__ROUTE_ID__:(\d+)/);
+    if (!routeMatch) {
+      console.error('Route planning produced no route id:', stdout, stderr);
+      return res.status(500).json({ error: 'Route planning produced no route.' });
+    }
+    const routeId = Number(routeMatch[1]);
+
+    try {
+      const circles = await query(
+        `SELECT s.id, s.name, s.url, c.label, c.radius_km
+           FROM route_search_circles c
+           JOIN searches s ON s.id = c.search_id
+          WHERE c.route_search_id = ?`,
+        [routeId]
+      );
+      const route = await query(
+        'SELECT name, radius_km, half_width_km FROM route_searches WHERE id = ?',
+        [routeId]
+      );
+      res.json({
+        success: true,
+        route_id: routeId,
+        name: route[0] ? route[0].name : null,
+        corridor_km: route[0] ? route[0].half_width_km : null,
+        searches: circles,
+      });
+    } catch (error) {
+      console.error('Route planned but could not be read back:', error);
+      res.status(500).json({ error: 'Route planned but could not be read back.' });
+    }
+  });
+});
+
 // API: Delete search item
 app.delete('/api/searches/:id', async (req, res) => {
   try {
