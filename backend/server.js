@@ -653,6 +653,112 @@ app.post('/api/route-searches', (req, res) => {
   });
 });
 
+async function getRouteCorridorPayload(route) {
+  let plan = {};
+  try {
+    plan = JSON.parse(route.plan_json || '{}');
+  } catch (e) {
+    console.error('Failed to parse route plan_json:', e);
+  }
+
+  const circles = await query(
+    `SELECT c.route_search_id, c.search_id, c.location_id, c.label, c.radius_km,
+            s.name as search_name, s.url
+       FROM route_search_circles c
+       JOIN searches s ON s.id = c.search_id
+      WHERE c.route_search_id = ?`,
+    [route.id]
+  );
+
+  const planCircles = plan.circles || [];
+  const enrichedCircles = circles.map((circle, index) => {
+    const planCircle = planCircles.find(
+      pc => String(pc.location_id) === String(circle.location_id) || pc.label === circle.label
+    ) || planCircles[index] || {};
+    return {
+      ...circle,
+      lat: planCircle.lat ?? null,
+      lon: planCircle.lon ?? null,
+      postal_code: planCircle.postal_code ?? null,
+    };
+  });
+
+  const listings = await query(
+    `SELECT l.id, l.title, l.price, l.location, l.url, l.images, l.created_at,
+            l.extracted_facts, l.niceness_score, l.llm_processed, l.search_id,
+            s.name as search_name,
+            g.lat, g.lon, g.offroute_km, g.detour_min, g.status as geo_status
+       FROM listings l
+       JOIN searches s ON l.search_id = s.id
+       LEFT JOIN listing_route_geo g ON g.listing_id = l.id AND g.route_search_id = ?
+      WHERE s.campaign_id = ?
+      ORDER BY (g.detour_min IS NULL) ASC, g.detour_min ASC, l.created_at DESC`,
+    [route.id, route.campaign_id]
+  );
+
+  const parsedListings = listings.map(l => ({
+    ...l,
+    images: JSON.parse(l.images || '[]'),
+    extracted_facts: JSON.parse(l.extracted_facts || '{}'),
+    llm_processed: !!l.llm_processed,
+  }));
+
+  return {
+    route: {
+      id: route.id,
+      campaign_id: route.campaign_id,
+      name: route.name,
+      origin: route.origin,
+      destination: route.destination,
+      radius_km: route.radius_km,
+      half_width_km: route.half_width_km,
+      distance_km: plan.distance_km || null,
+      duration_min: plan.duration_min || null,
+      polyline: plan.polyline || [],
+      circles: enrichedCircles,
+    },
+    listings: parsedListings,
+    counts: {
+      total: parsedListings.length,
+      routed: parsedListings.filter(l => l.detour_min !== null).length,
+      unplaced: parsedListings.filter(l => l.lat === null).length,
+    }
+  };
+}
+
+// API: Get route corridor details, geometry, circles, and listings with geo info
+app.get('/api/campaigns/:id/route', async (req, res) => {
+  try {
+    const route = await get(
+      'SELECT * FROM route_searches WHERE campaign_id = ? ORDER BY id DESC LIMIT 1',
+      [req.params.id]
+    );
+    if (!route) {
+      return res.status(404).json({ error: 'No route corridor found for this campaign.' });
+    }
+    const data = await getRouteCorridorPayload(route);
+    res.json(data);
+  } catch (error) {
+    console.error('Error fetching campaign route:', error);
+    res.status(500).json({ error: 'Failed to fetch campaign route' });
+  }
+});
+
+// API: Get route corridor by route search id
+app.get('/api/route-searches/:id', async (req, res) => {
+  try {
+    const route = await get('SELECT * FROM route_searches WHERE id = ?', [req.params.id]);
+    if (!route) {
+      return res.status(404).json({ error: 'Route search not found.' });
+    }
+    const data = await getRouteCorridorPayload(route);
+    res.json(data);
+  } catch (error) {
+    console.error('Error fetching route search:', error);
+    res.status(500).json({ error: 'Failed to fetch route search' });
+  }
+});
+
 // API: Delete search item
 app.delete('/api/searches/:id', async (req, res) => {
   try {
