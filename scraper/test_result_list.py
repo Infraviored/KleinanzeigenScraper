@@ -119,18 +119,24 @@ def test_the_federal_state_disambiguates_repeated_town_names():
     assert south[0] < 48 and north[0] > 53
 
 
-def test_every_state_in_the_gazetteer_is_a_real_one():
-    """The source table spelled 1,307 rows "Schlewig-Holstein", so every listing
-    in that state resolved to nothing. Nothing caught it, because the test that
-    should have used the same misspelling. This is the guard that would have."""
+def gazetteer_rows():
+    """The shipped place table, header separate from its rows."""
     import csv
 
     with open(
         os.path.join(HERE, "reference", "place_centroids.csv"), encoding="utf-8"
-    ) as fh:
-        reader = csv.reader(fh)
-        next(reader)
-        found = {row[1] for row in reader if len(row) > 1}
+    ) as handle:
+        reader = csv.reader(handle)
+        return next(reader), [row for row in reader if len(row) >= 6]
+
+
+def test_every_state_in_the_gazetteer_is_a_real_one():
+    """The source table spelled 1,307 rows "Schlewig-Holstein", so every listing
+    in that state resolved to nothing. Nothing caught it, because the test that
+    should have used the same misspelling. This is the guard that would have."""
+    header, rows = gazetteer_rows()
+    column = header.index("bundesland")
+    found = {row[column] for row in rows}
 
     assert found <= set(geo.FEDERAL_STATES), (
         f"not real states: {found - set(geo.FEDERAL_STATES)}"
@@ -138,6 +144,29 @@ def test_every_state_in_the_gazetteer_is_a_real_one():
     assert found == set(geo.FEDERAL_STATES), (
         f"missing: {set(geo.FEDERAL_STATES) - found}"
     )
+
+
+def test_the_gazetteer_has_the_columns_the_lookup_reads():
+    """Read by name, not by position: the column order changed once and the
+    state check above silently started reading the qualifier instead."""
+    header, rows = gazetteer_rows()
+
+    assert header == ["ort", "zusatz", "bundesland", "plz", "lat", "lon"]
+    assert len(rows) > 17000
+
+
+def test_the_qualifier_that_tells_two_towns_apart_is_kept():
+    """ "Landsberg am Lech" resolved to nothing because the build dropped the one
+    column that distinguishes the two Landsbergs."""
+    header, rows = gazetteer_rows()
+    name, qualifier, state = (header.index(c) for c in ("ort", "zusatz", "bundesland"))
+
+    landsbergs = {
+        (row[qualifier], row[state]) for row in rows if row[name] == "Landsberg"
+    }
+    assert ("a. Lech", "Bayern") in landsbergs
+    assert len(landsbergs) == 2, "both Landsbergs, told apart by their qualifier"
+    assert sum(1 for row in rows if row[qualifier]) > 6000
 
 
 def test_the_location_pattern_accepts_every_state_the_gazetteer_knows():
@@ -265,3 +294,63 @@ def test_an_element_without_both_attributes_is_not_a_card():
     )
 
     assert [listing["id"] for listing in result_list.parse(page)] == ["7"]
+
+
+# --- choosing a place ----------------------------------------------------
+
+
+def test_a_qualified_name_finds_the_town_it_names():
+    """ "Landsberg am Lech" was the failing case: the gazetteer writes it
+    "a. Lech", and the two spellings have to be one string."""
+    found = geo.places().suggest("Landsberg am Lech", 5)
+
+    assert found, "the name a person would type must find something"
+    assert found[0].postal_code == "86899"
+    assert found[0].state == "Bayern"
+
+
+def test_an_ambiguous_name_offers_every_candidate():
+    """The point of the list: the person is the only one who knows which
+    Landsberg they meant, so both are offered rather than one being picked."""
+    codes = {place.postal_code for place in geo.places().suggest("Landsberg", 8)}
+
+    assert {"86899", "06188"} <= codes
+
+
+def test_a_postal_code_finds_its_town():
+    found = geo.places().suggest("86899", 3)
+
+    assert found and found[0].name == "Landsberg"
+
+
+def test_umlauts_survive_being_typed_either_way():
+    for typed in ("München", "Muenchen", "munchen"):
+        found = geo.places().suggest(typed, 3)
+        assert found, typed
+        assert found[0].name == "München", typed
+
+
+def test_a_typo_still_finds_the_town():
+    """Scored by similarity, so one wrong letter is not a dead end."""
+    codes = {place.postal_code for place in geo.places().suggest("Lansberg", 8)}
+
+    assert "86899" in codes
+
+
+def test_a_prefix_ranks_above_a_match_in_the_middle():
+    found = geo.places().suggest("Konst", 5)
+
+    assert found[0].name.lower().startswith("konst")
+
+
+def test_a_place_carries_everything_the_planner_and_the_list_need():
+    place = geo.places().suggest("86899", 1)[0]
+
+    assert place.label == "86899 Landsberg a. Lech, Bayern"
+    assert place.as_dict()["postal_code"] == "86899"
+    assert place.as_dict()["lat"] and place.as_dict()["lon"]
+
+
+def test_a_single_character_suggests_nothing():
+    """Every place in the country is not a suggestion."""
+    assert geo.places().suggest("L") == []
