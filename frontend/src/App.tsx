@@ -1825,7 +1825,7 @@ export default function App() {
 
                       {/* URL Validity indicator */}
                       <div className="flex items-center space-x-2 text-xs">
-                        <span className="text-2xs font-mono w-24 text-slate-500">{t('common.urlStatus')}</span>
+                        <span className="text-2xs font-mono text-slate-500 shrink-0">{t('common.urlStatus')}</span>
                         {isValidKleinanzeigenUrl(newTargetUrl) ? (
                           <span className="text-emerald-400 font-semibold">{t('common.validUrl')}</span>
                         ) : (
@@ -1836,7 +1836,7 @@ export default function App() {
                       {/* Suggested Title */}
                       {isValidKleinanzeigenUrl(newTargetUrl) && (
                         <div className="flex items-center space-x-2 text-xs">
-                          <span className="text-2xs font-mono w-24 text-slate-500">{t('common.suggestedName')}</span>
+                          <span className="text-2xs font-mono text-slate-500 shrink-0">{t('common.suggestedName')}</span>
                           <span className="text-slate-200 font-bold bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
                             {suggestTitleFromUrl(newTargetUrl) || t('common.extractingTitle')}
                           </span>

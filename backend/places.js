@@ -18,14 +18,40 @@ const TABLE_PATH = path.join(
   __dirname, '..', 'scraper', 'reference', 'place_centroids.csv'
 );
 
-// Umlauts spelled out, "am"/"a." collapsed, punctuation dropped — so that
-// "Landsberg am Lech", "landsberg a. lech" and "Muenchen" all land on the form
-// the table is indexed by.
-function fold(text) {
-  let s = String(text).trim().toLowerCase()
+// Two spellings of every place, because people type both.
+//
+// `spelled` writes umlauts out (München -> muenchen) and `plain` drops them
+// (muenchen -> munchen). A query is folded both ways and matched against both
+// indexes, so "München", "Muenchen" and "Munchen" all land on the same town
+// exactly, instead of being left to a similarity score. That was not academic:
+// "Nurnberg" scored 0.857 against *Bernburg* and only 0.80 against Nürnberg, so
+// the wrong city ranked first; "koln" and "furth" scored below the threshold and
+// returned nothing at all.
+//
+// The qualifier is stripped the same way on both sides. It has to be: the table
+// writes "b Trier" and "a d Havel" without dots in 3,117 of its rows, while a
+// person types "bei Trier" and "an der Havel". Folding only the spelled-out
+// words left the two forms unable to meet, so those places could not be found
+// by their own names.
+const QUALIFIER_WORDS =
+  /\b(a|b|i|d|am|an|auf|bei|beim|im|in|ob|unter|vor|der|den|dem|die|das)\b\.?/g;
+
+function normalise(text) {
+  return String(text).trim().toLowerCase()
+    .replace(/\./g, ' ')
+    .replace(QUALIFIER_WORDS, ' ')
+    .replace(/[^a-zäöüß0-9 ]+/g, ' ')
+    .split(/\s+/).filter(Boolean).join(' ');
+}
+
+function spelled(text) {
+  return normalise(text)
     .replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss');
-  s = s.replace(/\s(am|an|bei|im|a\.|b\.|i\.)\s/g, ' ').replace(/\s(a|b|i)\.\s*/g, ' ');
-  return s.replace(/[^a-z0-9 ]+/g, ' ').split(/\s+/).filter(Boolean).join(' ');
+}
+
+function plain(text) {
+  return normalise(text)
+    .replace(/ä/g, 'a').replace(/ö/g, 'o').replace(/ü/g, 'u').replace(/ß/g, 'ss');
 }
 
 function parseCsvLine(line) {
@@ -66,8 +92,10 @@ function load() {
         lat: Number(lat),
         lon: Number(lon),
         label: `${postalCode} ${town}, ${state}`,
-        _name: fold(name),
-        _full: fold(town),
+        _name: spelled(name),
+        _full: spelled(town),
+        _namePlain: plain(name),
+        _fullPlain: plain(town),
       });
     }
     console.log(`Loaded ${places.length} places for route lookup`);
@@ -107,17 +135,28 @@ function suggest(query, limit = 8) {
     if (exact.length) return exact.slice(0, limit);
   }
 
-  const needle = fold(text);
+  const needle = spelled(text);
+  const needlePlain = plain(text);
   if (!needle) return [];
 
   const scored = [];
   for (const place of places) {
+    const forms = [place._name, place._full];
+    const formsPlain = [place._namePlain, place._fullPlain];
+
     let rank;
-    if (place._name.startsWith(needle) || place._full.startsWith(needle)) rank = 0;
-    else if (place._name.includes(needle) || place._full.includes(needle)) rank = 1;
+    if (forms.some(f => f.startsWith(needle)) ||
+        formsPlain.some(f => f.startsWith(needlePlain))) rank = 0;
+    else if (forms.some(f => f.includes(needle)) ||
+             formsPlain.some(f => f.includes(needlePlain))) rank = 1;
     else {
-      const ratio = similarity(needle, place._name);
-      if (ratio < 0.72) continue;
+      // Only genuine typos reach this. Both spellings match exactly now, so the
+      // threshold can be strict rather than loose enough to bridge them — at
+      // 0.72 it admitted "Melle" for "Celle" and every other rhyme.
+      const ratio = Math.max(
+        similarity(needle, place._name), similarity(needlePlain, place._namePlain)
+      );
+      if (ratio < 0.84) continue;
       rank = 3 - ratio;
     }
     scored.push([rank, place._name.length, place.name, place]);

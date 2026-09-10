@@ -35,6 +35,11 @@ const db = new sqlite3.Database(dbPath);
 // WAL mode allows multiple concurrent readers/writers (parallel agent evals)
 db.run('PRAGMA journal_mode=WAL;');
 db.run('PRAGMA busy_timeout=5000;');
+// SQLite ignores foreign keys unless asked, per connection. Without this the
+// ON DELETE CASCADE declarations in the schema are decoration: deleting a
+// campaign removed one row and left its searches, listings and messages behind
+// as orphans that nothing could reach and nothing would clean up.
+db.run('PRAGMA foreign_keys = ON;');
 
 // Perform database schema migration on startup (non-destructive)
 db.serialize(() => {
@@ -457,14 +462,31 @@ app.delete('/api/campaigns/:id', async (req, res) => {
       return res.status(404).json({ error: 'Campaign not found' });
     }
 
-    // Listings and searches cascade from the campaign, but the count is worth
-    // knowing before it happens, so the UI can say what is about to be lost.
+    // Worth counting before it happens, so the UI can say what is being lost.
     const [counts] = await query(
       `SELECT (SELECT COUNT(*) FROM searches WHERE campaign_id = ?) AS searches,
               (SELECT COUNT(*) FROM listings l JOIN searches s ON l.search_id = s.id
                 WHERE s.campaign_id = ?) AS listings`,
       [campaignId, campaignId]
     );
+
+    // Searches, listings and messages cascade — now that foreign keys are
+    // actually switched on. The route tables are created by the Python side and
+    // declare no references at all, and SQLite cannot add them to an existing
+    // table, so they are cleared here by hand. Doing it in the same order the
+    // references point removes the children before their parents.
+    await run(
+      `DELETE FROM listing_route_geo WHERE route_search_id IN
+         (SELECT id FROM route_searches WHERE campaign_id = ?)`,
+      [campaignId]
+    ).catch(() => {});   // the route tables may not exist yet
+    await run(
+      `DELETE FROM route_search_circles WHERE route_search_id IN
+         (SELECT id FROM route_searches WHERE campaign_id = ?)`,
+      [campaignId]
+    ).catch(() => {});
+    await run('DELETE FROM route_searches WHERE campaign_id = ?', [campaignId])
+      .catch(() => {});
 
     await run('DELETE FROM campaigns WHERE id = ?', [campaignId]);
     res.json({ success: true, name: campaign.name, ...counts });

@@ -44,6 +44,21 @@ export default function PlaceInput({ label, placeholder, value, onChange, emptyH
   // Suppresses the lookup that a selection's own text change would otherwise
   // trigger — picking a place should close the list, not repopulate it.
   const skipNextLookup = useRef(false)
+  const listRef = useRef<HTMLUListElement>(null)
+
+  // The field follows its value. Clearing it from outside — which is what the
+  // form does after planning a corridor — has to clear what is on screen too,
+  // or the input keeps showing a place the application no longer holds.
+  useEffect(() => {
+    if (value === null && text !== '') {
+      skipNextLookup.current = true
+      setText('')
+      setMatches([])
+      setOpen(false)
+    }
+    // Only reacting to the value going away; typing is handled below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value])
 
   useEffect(() => {
     if (skipNextLookup.current) {
@@ -88,7 +103,11 @@ export default function PlaceInput({ label, placeholder, value, onChange, emptyH
   }, [open])
 
   const choose = (place: Place) => {
-    skipNextLookup.current = true
+    // Only arm the skip if the text is actually about to change. Choosing the
+    // suggestion whose label already equals the input leaves React with nothing
+    // to re-render, the effect never runs, and the flag would stay armed to
+    // swallow the next real keystroke instead.
+    skipNextLookup.current = place.label !== text
     setText(place.label)
     setMatches([])
     setOpen(false)
@@ -97,6 +116,9 @@ export default function PlaceInput({ label, placeholder, value, onChange, emptyH
 
   const onKeyDown = (event: React.KeyboardEvent) => {
     if (event.key === 'Escape') { setOpen(false); return }
+    // Moving on with Tab is leaving this field; a list left floating over the
+    // page belongs to a field the user is no longer in.
+    if (event.key === 'Tab') { setOpen(false); return }
     if (!open || matches.length === 0) return
 
     if (event.key === 'ArrowDown') {
@@ -110,6 +132,13 @@ export default function PlaceInput({ label, placeholder, value, onChange, emptyH
       choose(matches[active])
     }
   }
+
+  // Keep the highlighted option in view: arrowing past the bottom of a
+  // scrollable list otherwise highlights something nobody can see.
+  useEffect(() => {
+    if (!open) return
+    listRef.current?.children[active]?.scrollIntoView({ block: 'nearest' })
+  }, [active, open])
 
   return (
     <div className="space-y-1.5 relative" ref={containerRef}>
@@ -149,6 +178,7 @@ export default function PlaceInput({ label, placeholder, value, onChange, emptyH
            truncated in a 220 px column, hiding the very word being read. */
         <ul
           id={listId}
+          ref={listRef}
           role="listbox"
           className="absolute z-30 left-0 top-full mt-1 min-w-full w-max max-w-[min(28rem,80vw)] max-h-72 overflow-y-auto rounded-xl border border-slate-855 bg-slate-950 shadow-2xl py-1"
         >
