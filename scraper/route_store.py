@@ -18,48 +18,15 @@ Two things do need somewhere to live:
 """
 
 import datetime
+import db_schema
 import json
 import logging
 import sqlite3
 
 logger = logging.getLogger(__name__)
 
-SCHEMA = """
-CREATE TABLE IF NOT EXISTS route_searches (
-    id              INTEGER PRIMARY KEY AUTOINCREMENT,
-    name            TEXT,
-    campaign_id     INTEGER,
-    knowledge_set_id INTEGER,
-    base_url        TEXT NOT NULL,
-    origin          TEXT NOT NULL,
-    destination     TEXT NOT NULL,
-    radius_km       REAL NOT NULL,
-    half_width_km   REAL NOT NULL,
-    plan_json       TEXT NOT NULL,
-    created_at      TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS route_search_circles (
-    route_search_id INTEGER NOT NULL,
-    search_id       INTEGER NOT NULL,
-    location_id     TEXT,
-    label           TEXT,
-    radius_km       REAL,
-    PRIMARY KEY (route_search_id, search_id)
-);
-
-CREATE TABLE IF NOT EXISTS listing_route_geo (
-    listing_id      TEXT NOT NULL,
-    route_search_id INTEGER NOT NULL,
-    lat             REAL,
-    lon             REAL,
-    offroute_km     REAL,
-    detour_min      REAL,
-    status          TEXT NOT NULL DEFAULT 'routed',
-    computed_at     TEXT NOT NULL,
-    PRIMARY KEY (listing_id, route_search_id)
-);
-"""
+# The route_searches DDL lives in db/schema.sql, applied by db_schema.
+# It was declared here too until the two copies began to drift.
 
 # Why a listing has no detour, which decides whether asking again is worthwhile.
 # Without this the three reasons are indistinguishable — all of them store a null
@@ -74,18 +41,12 @@ RETRYABLE = (FAILED,)
 
 
 def ensure_schema(conn):
-    conn.executescript(SCHEMA)
+    """Bring the connection up to db/schema.sql.
 
-    # Databases created before the status column exists still carry rows, and
-    # those rows are all settled results — the failure case is what the column
-    # was added to express, so defaulting them to "routed" is accurate.
-    columns = {row[1] for row in conn.execute("PRAGMA table_info(listing_route_geo)")}
-    if "status" not in columns:
-        conn.execute(
-            "ALTER TABLE listing_route_geo ADD COLUMN status TEXT NOT NULL "
-            "DEFAULT 'routed'"
-        )
-    conn.commit()
+    The route tables used to be declared here *and* in backend/server.js, and
+    the two had already begun to drift. Both sides now read one file.
+    """
+    db_schema.apply_schema(conn)
 
 
 def _now():

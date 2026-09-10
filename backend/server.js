@@ -39,133 +39,78 @@ db.run('PRAGMA busy_timeout=5000;');
 // ON DELETE CASCADE declarations in the schema are decoration: deleting a
 // campaign removed one row and left its searches, listings and messages behind
 // as orphans that nothing could reach and nothing would clean up.
-db.run('PRAGMA foreign_keys = ON;');
+const { applySchema } = require('./db/schema');
 
-// Perform database schema migration on startup (non-destructive)
-db.serialize(() => {
-  // The route corridor tables. Their definition also lives in
-  // scraper/route_store.py, which is what created them until now — meaning any
-  // install that had never planned a route did not have them, and the very
-  // first screen queries route_searches. That is a 500 on the campaign
-  // dashboard of every fresh installation. Creating them here as well costs
-  // nothing on an existing database and removes the ordering dependency.
-  //
-  // Kept byte-identical to the Python definition on purpose: two CREATE TABLE
-  // statements that drift apart are worse than one in the wrong place.
-  db.run(`
-    CREATE TABLE IF NOT EXISTS route_searches (
-      id              INTEGER PRIMARY KEY AUTOINCREMENT,
-      name            TEXT,
-      campaign_id     INTEGER,
-      knowledge_set_id INTEGER,
-      base_url        TEXT NOT NULL,
-      origin          TEXT NOT NULL,
-      destination     TEXT NOT NULL,
-      radius_km       REAL NOT NULL,
-      half_width_km   REAL NOT NULL,
-      plan_json       TEXT NOT NULL,
-      created_at      TEXT NOT NULL
-    )
-  `);
-  db.run(`
-    CREATE TABLE IF NOT EXISTS route_search_circles (
-      route_search_id INTEGER NOT NULL,
-      search_id       INTEGER NOT NULL,
-      location_id     TEXT,
-      label           TEXT,
-      radius_km       REAL,
-      PRIMARY KEY (route_search_id, search_id)
-    )
-  `);
-  db.run(`
-    CREATE TABLE IF NOT EXISTS listing_route_geo (
-      listing_id      TEXT NOT NULL,
-      route_search_id INTEGER NOT NULL,
-      lat             REAL,
-      lon             REAL,
-      offroute_km     REAL,
-      detour_min      REAL,
-      status          TEXT NOT NULL DEFAULT 'routed',
-      computed_at     TEXT NOT NULL,
-      PRIMARY KEY (listing_id, route_search_id)
-    )
-  `);
+// One schema, in db/schema.sql, applied by both runtimes. It used to live in
+// five places, and the campaign dashboard returned 500 on every fresh install
+// because this file queried route_searches while only Python created it.
+applySchema(db)
+  .then(() => seedDefaultUser())
+  .catch(err => {
+    console.error('Could not bring the database up to db/schema.sql:', err.message);
+    process.exit(1);
+  });
 
-  // Create users table and seed default user if empty
-  db.run(`
-    CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      email TEXT UNIQUE NOT NULL,
-      password_hash TEXT NOT NULL,
-      role TEXT NOT NULL
-    )
-  `, (err) => {
+function seedDefaultUser() {
+  db.get("SELECT COUNT(*) as count FROM users", (err, row) => {
     if (err) {
-      console.error("Failed to create users table:", err);
+      console.error("Failed to query users count:", err);
       return;
     }
-    db.get("SELECT COUNT(*) as count FROM users", (err, row) => {
+    if (row.count > 0) return;
+
+    const defaultEmail = process.env.DEFAULT_ADMIN_EMAIL || 'admin@prismdeals.local';
+    let defaultPassword = process.env.DEFAULT_ADMIN_PASSWORD;
+    if (process.env.NODE_ENV === 'production' && !defaultPassword) {
+      console.error("FATAL: DEFAULT_ADMIN_PASSWORD environment variable is required in production to seed the default admin user!");
+      process.exit(1);
+    }
+    if (!defaultPassword) {
+      defaultPassword = 'password';
+    }
+
+    bcrypt.hash(defaultPassword, 10, (err, hash) => {
       if (err) {
-        console.error("Failed to query users count:", err);
+        console.error("Failed to hash default password:", err);
         return;
       }
-      if (row.count === 0) {
-        const defaultEmail = process.env.DEFAULT_ADMIN_EMAIL || 'admin@prismdeals.local';
-        let defaultPassword = process.env.DEFAULT_ADMIN_PASSWORD;
-        if (process.env.NODE_ENV === 'production' && !defaultPassword) {
-          console.error("FATAL: DEFAULT_ADMIN_PASSWORD environment variable is required in production to seed the default admin user!");
-          process.exit(1);
+      db.run(
+        "INSERT INTO users (email, password_hash, role) VALUES (?, ?, ?)",
+        [defaultEmail, hash, 'admin'],
+        (err) => {
+          if (err) console.error("Failed to seed default admin user:", err);
+          else console.log(`Seeded default admin user: ${defaultEmail}`);
         }
-        if (!defaultPassword) {
-          defaultPassword = 'password';
-        }
-        const saltRounds = 10;
-        
-        bcrypt.hash(defaultPassword, saltRounds, (err, hash) => {
-          if (err) {
-            console.error("Failed to hash default password:", err);
-            return;
-          }
-          db.run("INSERT INTO users (email, password_hash, role) VALUES (?, ?, ?)", 
-            [defaultEmail, hash, 'admin'], 
-            (err) => {
-              if (err) console.error("Failed to seed default admin user:", err);
-              else console.log(`Seeded default admin user: ${defaultEmail}`);
-            }
-          );
-        });
-      }
+      );
     });
   });
 
-  db.all("PRAGMA table_info(listings)", (err, rows) => {
-    if (err) {
-      console.error('Error reading table info:', err);
-      return;
-    }
-    const columns = rows.map(r => r.name);
-    
-    if (!columns.includes('last_description_changed_at')) {
-      db.run("ALTER TABLE listings ADD COLUMN last_description_changed_at TEXT", (err) => {
-        if (err) console.error("Failed to add last_description_changed_at column:", err);
-        else {
-          console.log("Added column: last_description_changed_at");
-          db.run("UPDATE listings SET last_description_changed_at = COALESCE(llm_processed_time, datetime('now', 'localtime'))");
-        }
-      });
-    }
-    
-    if (!columns.includes('last_ai_evaluated_at')) {
-      db.run("ALTER TABLE listings ADD COLUMN last_ai_evaluated_at TEXT", (err) => {
-        if (err) console.error("Failed to add last_ai_evaluated_at column:", err);
-        else {
-          console.log("Added column: last_ai_evaluated_at");
-          db.run("UPDATE listings SET last_ai_evaluated_at = llm_processed_time WHERE llm_processed = 1 AND llm_processed_time IS NOT NULL");
-        }
-      });
-    }
-  });
-});
+  backfillListingTimestamps();
+}
+
+/**
+ * The two timestamp columns are added by db/schema.sql. Their *values* are not
+ * something a schema file can supply: rows that predate the columns need one
+ * derived from what the row already knows. Runs after the schema, and only ever
+ * fills nulls, so it is safe on every startup.
+ */
+function backfillListingTimestamps() {
+  db.run(
+    `UPDATE listings
+        SET last_description_changed_at =
+              COALESCE(llm_processed_time, datetime('now', 'localtime'))
+      WHERE last_description_changed_at IS NULL`,
+    err => { if (err) console.error('Backfilling last_description_changed_at:', err); }
+  );
+  db.run(
+    `UPDATE listings
+        SET last_ai_evaluated_at = llm_processed_time
+      WHERE last_ai_evaluated_at IS NULL
+        AND llm_processed = 1
+        AND llm_processed_time IS NOT NULL`,
+    err => { if (err) console.error('Backfilling last_ai_evaluated_at:', err); }
+  );
+}
 
 const query = (sql, params = []) => {
   return new Promise((resolve, reject) => {

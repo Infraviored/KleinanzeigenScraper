@@ -21,22 +21,15 @@ fact sheet for matching listings and stay buyer-independent.
 """
 
 import datetime
+import db_schema
 import json
 import logging
 import re
 
 logger = logging.getLogger(__name__)
 
-SCHEMA = """
-CREATE TABLE IF NOT EXISTS dossiers (
-    identity_key    TEXT PRIMARY KEY,
-    category_key    TEXT NOT NULL,
-    version         INTEGER NOT NULL DEFAULT 1,
-    payload_json    TEXT NOT NULL,
-    researched_at   TEXT NOT NULL,
-    approved        INTEGER NOT NULL DEFAULT 0
-);
-"""
+# The dossiers DDL lives in db/schema.sql, applied by db_schema.
+# It was declared here too until the two copies began to drift.
 
 # How long a claim of each kind stays trustworthy.
 TTL_DAYS = {
@@ -53,7 +46,8 @@ CLAIM_KINDS = tuple(TTL_DAYS)
 
 
 def ensure_schema(conn):
-    conn.executescript(SCHEMA)
+    """Bring the connection up to db/schema.sql."""
+    db_schema.apply_schema(conn)
     conn.commit()
 
 
