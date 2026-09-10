@@ -1063,7 +1063,7 @@ export default function App() {
 
         {/* Desktop Controls (Inline row) */}
         <div className="hidden md:flex items-center gap-4">
-          {/* Authentication session state widget */}
+          {/* Kleinanzeigen scraper connection status */}
           <div className="flex items-center gap-3 bg-bg-input border border-border-subtle rounded-xl py-1.5 px-3 shadow-inner">
             <div className="flex items-center space-x-1.5">
               <span className={cn("w-2 h-2 rounded-full", sessionEmail ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500')} />
@@ -1097,6 +1097,10 @@ export default function App() {
             )}
           </div>
 
+          {/* Visual separator between scraper status and app account controls */}
+          <div className="h-6 w-px bg-border-subtle" />
+
+          {/* App Account Controls */}
           <div className="flex items-center gap-3">
             {/* Language Selector Dropdown */}
             <div className="relative">
@@ -1172,7 +1176,7 @@ export default function App() {
               </button>
             </div>
 
-            {/* Authentication session state widget */}
+            {/* Kleinanzeigen scraper connection status */}
             <div className="flex flex-col gap-3 bg-bg-input border border-border-subtle rounded-xl p-3 shadow-inner">
               <div className="flex items-center space-x-1.5">
                 <span className={cn("w-2 h-2 rounded-full", sessionEmail ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500')} />
@@ -1656,17 +1660,18 @@ export default function App() {
           <div className="flex flex-col space-y-6 w-full animate-fadeIn max-w-6xl mx-auto py-2">
 
             {/* Sub Header */}
-            <div className="flex justify-between items-center pb-4 border-b border-slate-800 w-full">
-              <div className="flex items-center space-x-3">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center items-start gap-3 pb-4 border-b border-slate-800 w-full">
+              <div className="flex flex-col sm:flex-row sm:items-center items-start gap-3 w-full sm:w-auto">
                 <Button
                   variant="badge"
                   size="sm"
                   onClick={() => setView('dashboard')}
+                  className="shrink-0"
                 >
                   <span>← {t('common.backToDashboard')}</span>
                 </Button>
-                <div className="w-[1px] h-5 bg-slate-800" />
-                <div className="flex flex-col">
+                <div className="hidden sm:block w-[1px] h-5 bg-slate-800 shrink-0" />
+                <div className="flex flex-col min-w-0">
                   {isEditingCampaignName ? (
                     <div className="flex items-center space-x-2">
                       <Input
@@ -1692,7 +1697,7 @@ export default function App() {
                     </div>
                   ) : (
                     <div className="flex items-center space-x-2 group">
-                      <h1 className="text-base font-bold text-slate-200">
+                      <h1 className="text-base font-bold text-slate-200 truncate">
                         {campaigns.find(c => c.id === currentCampaignId)?.name} {t('common.settings')}
                       </h1>
                       <Button
@@ -1700,7 +1705,7 @@ export default function App() {
                         size="xs"
                         onClick={() => setIsEditingCampaignName(true)}
                         title={t('common.renameCampaign')}
-                        className="p-1"
+                        className="p-1 shrink-0"
                       >
                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                           <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
