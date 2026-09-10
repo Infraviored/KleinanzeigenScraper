@@ -553,6 +553,137 @@ app.get('/api/places/suggest', (req, res) => {
   });
 });
 
+// API: Draw a corridor without building it.
+//
+// The corridor is a decision with a shape — how far off the road you will turn,
+// and therefore how many searches it takes to cover. Committing to that before
+// seeing it is guesswork, so this answers the same question the real planner
+// answers and writes nothing: the route, the circles, their radii and where
+// each one snapped to.
+app.post('/api/route-searches/preview', (req, res) => {
+  const { base_url, origin, destination, radius_km, corridor_km } = req.body;
+
+  if (!base_url || !origin || !destination) {
+    return res.status(400).json({ error: 'Missing base_url, origin or destination' });
+  }
+  if (!isValidScrapeUrl(base_url)) {
+    return res.status(400).json({
+      error: 'Invalid search target URL. Only Kleinanzeigen URLs are allowed.',
+    });
+  }
+
+  const pythonExecutable = path.join(__dirname, '..', '.venv', 'bin', 'python3');
+  const args = [
+    path.join(__dirname, '..', 'scraper', 'main.py'),
+    '--mode', 'route-preview',
+    '--urls', base_url,
+    '--from', String(origin),
+    '--to', String(destination),
+  ];
+  if (radius_km) args.push('--radius-km', String(radius_km));
+  if (corridor_km) args.push('--corridor-km', String(corridor_km));
+
+  const python = spawn(pythonExecutable, args, { env: { ...process.env } });
+  let stdout = '';
+  let stderr = '';
+  let replied = false;
+  python.stdout.on('data', d => { stdout += d; });
+  python.stderr.on('data', d => { stderr += d; });
+
+  python.on('error', err => {
+    console.error('Could not start the route planner:', err);
+    if (replied) return;
+    replied = true;
+    res.status(500).json({ error: 'Could not start the route planner.' });
+  });
+
+  python.on('close', () => {
+    if (replied) return;
+    replied = true;
+
+    // The planner's own message names the place it could not resolve or the
+    // corridor it cannot cover, and that is what the person adjusting the
+    // sliders needs to read.
+    const refused = stdout.match(/__ROUTE_PREVIEW_ERROR__:(.+)/);
+    if (refused) return res.status(400).json({ error: refused[1].trim() });
+
+    const drawn = stdout.match(/__ROUTE_PREVIEW__:(.+)/);
+    if (!drawn) {
+      const reason = (stderr.match(/ValueError: (.+)/) || [])[1];
+      console.error('Route preview produced nothing:', stdout, stderr);
+      return res.status(500).json({ error: reason || 'Could not plan this route.' });
+    }
+
+    try {
+      res.json(JSON.parse(drawn[1]));
+    } catch (error) {
+      console.error('Route preview was not valid JSON:', error);
+      res.status(500).json({ error: 'Could not read the planned route.' });
+    }
+  });
+});
+
+// API: Redraw an existing corridor at a different radius or width.
+//
+// A corridor is a guess before it is a decision, and the reason to change one
+// is usually that something was missed — so changing it must not throw away
+// what it already found. Circles that survive the new plan keep their search
+// row and its listings; ones that fall out are detached from the route rather
+// than deleted.
+app.put('/api/route-searches/:id', (req, res) => {
+  const { radius_km, corridor_km } = req.body;
+  if (!radius_km || !corridor_km) {
+    return res.status(400).json({ error: 'Missing radius_km or corridor_km' });
+  }
+
+  const pythonExecutable = path.join(__dirname, '..', '.venv', 'bin', 'python3');
+  const python = spawn(pythonExecutable, [
+    path.join(__dirname, '..', 'scraper', 'main.py'),
+    '--mode', 'route-replan',
+    '--route-id', String(req.params.id),
+    '--radius-km', String(radius_km),
+    '--corridor-km', String(corridor_km),
+  ], { env: { ...process.env } });
+
+  let stdout = '';
+  let stderr = '';
+  let replied = false;
+  python.stdout.on('data', d => { stdout += d; });
+  python.stderr.on('data', d => { stderr += d; });
+
+  python.on('error', err => {
+    console.error('Could not start the route planner:', err);
+    if (replied) return;
+    replied = true;
+    res.status(500).json({ error: 'Could not start the route planner.' });
+  });
+
+  python.on('close', async () => {
+    if (replied) return;
+    replied = true;
+
+    const refused = stdout.match(/__ROUTE_REPLAN_ERROR__:(.+)/);
+    if (refused) return res.status(400).json({ error: refused[1].trim() });
+
+    const done = stdout.match(/__ROUTE_REPLANNED__:(.+)/);
+    if (!done) {
+      console.error('Route replan produced nothing:', stdout, stderr);
+      return res.status(500).json({ error: 'Could not redraw this corridor.' });
+    }
+
+    try {
+      const route = await query('SELECT * FROM route_searches WHERE id = ?', [
+        req.params.id,
+      ]);
+      if (!route.length) return res.status(404).json({ error: 'No such route' });
+      res.json(await getRouteCorridorPayload(route[0]));
+    } catch (error) {
+      console.error('Corridor redrawn but could not be read back:', error);
+      res.status(500).json({ error: 'Corridor redrawn but could not be read back.' });
+    }
+  });
+});
+
 // API: Plan a route corridor and register its circles as ordinary searches.
 //
 // A route search is not a new kind of search: the planner turns one search URL
@@ -742,6 +873,9 @@ async function getRouteCorridorPayload(route) {
       id: route.id,
       campaign_id: route.campaign_id,
       name: route.name,
+      // The search this corridor re-aims. Sent so the corridor can be redrawn
+      // from the results without asking for it again.
+      base_url: route.base_url,
       origin: route.origin,
       destination: route.destination,
       radius_km: route.radius_km,

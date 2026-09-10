@@ -280,6 +280,21 @@ export const translations = {
       errorInvalid: "Invalid email or password",
       logout: "Log Out"
     },
+    corridor: {
+      awaitingEnds: "Pick where you set off and where you are going. The route appears here.",
+      drawing: "Drawing the corridor...",
+      searchesNeeded: "searches cover this corridor",
+      radiusLabel: "Search radius per point",
+      radiusHint: "How far each individual search reaches. Larger circles cover the route with fewer of them.",
+      widthLabel: "How far off the route you would turn",
+      widthHint: "A wider corridor finds more, and needs more searches to cover — the circles have to sit closer together.",
+      unresolved: "No search location for: {{places}}. Those stretches are not covered.",
+      committing: "Setting up...",
+      commitNew: "Search this corridor",
+      commitChange: "Redraw this corridor",
+      editSettings: "Corridor settings",
+      changedSummary: "{{kept}} searches kept, {{added}} added, {{removed}} dropped.",
+    },
     routeResults: {
       corridorResults: "Corridor Results",
       listingsFound: "{{count}} listings along this corridor",
@@ -604,6 +619,21 @@ export const translations = {
       buttonLoggingIn: "Wird eingeloggt...",
       errorInvalid: "Ungültige E-Mail oder Passwort",
       logout: "Ausloggen"
+    },
+    corridor: {
+      awaitingEnds: "Start und Ziel wählen — die Route erscheint hier.",
+      drawing: "Korridor wird gezeichnet...",
+      searchesNeeded: "Suchen decken diesen Korridor ab",
+      radiusLabel: "Suchradius je Punkt",
+      radiusHint: "Wie weit eine einzelne Suche reicht. Größere Kreise decken die Route mit weniger Suchen ab.",
+      widthLabel: "Wie weit du von der Route abbiegen würdest",
+      widthHint: "Ein breiterer Korridor findet mehr und braucht mehr Suchen — die Kreise müssen enger stehen.",
+      unresolved: "Kein Suchort für: {{places}}. Diese Abschnitte sind nicht abgedeckt.",
+      committing: "Wird eingerichtet...",
+      commitNew: "Diesen Korridor durchsuchen",
+      commitChange: "Korridor neu zeichnen",
+      editSettings: "Korridor-Einstellungen",
+      changedSummary: "{{kept}} Suchen behalten, {{added}} neu, {{removed}} entfallen.",
     },
     routeResults: {
       corridorResults: "Korridor-Ergebnisse",

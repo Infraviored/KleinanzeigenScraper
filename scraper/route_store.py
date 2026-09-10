@@ -93,6 +93,39 @@ def save_plan(
     )
     route_id = cursor.lastrowid
 
+    conflicts = attach_circles(
+        conn,
+        route_id,
+        plan,
+        name=name,
+        destination=destination,
+        campaign_id=campaign_id,
+        knowledge_set_id=knowledge_set_id,
+    )
+    conn.commit()
+    return route_id, conflicts
+
+
+def attach_circles(
+    conn,
+    route_search_id,
+    plan,
+    name=None,
+    destination=None,
+    campaign_id=None,
+    knowledge_set_id=None,
+):
+    """Registers each circle of `plan` as an ordinary search on this route.
+
+    Split out of save_plan so that redrawing a corridor and building one use the
+    same code. A circle whose url already has a search row reuses it, which is
+    what lets a corridor be widened without re-scraping what it already found —
+    and what lets two overlapping corridors share the work.
+
+    Returns the conflicts: circles that had to reuse a row meaning something
+    else.
+    """
+    cursor = conn.cursor()
     conflicts = []
     for index, circle in enumerate(plan.circles, 1):
         label = f"{name or destination} · {index}/{len(plan.circles)} {circle.label}"
@@ -175,11 +208,16 @@ def save_plan(
             "INSERT OR REPLACE INTO route_search_circles "
             "(route_search_id, search_id, location_id, label, radius_km) "
             "VALUES (?, ?, ?, ?, ?)",
-            (route_id, search_id, circle.location_id, circle.label, circle.radius_km),
+            (
+                route_search_id,
+                search_id,
+                circle.location_id,
+                circle.label,
+                circle.radius_km,
+            ),
         )
 
-    conn.commit()
-    return route_id, conflicts
+    return conflicts
 
 
 def get_plan(conn, route_search_id):

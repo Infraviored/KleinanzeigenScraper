@@ -1,5 +1,6 @@
 import os
 import sys
+import db_schema
 import json
 import sqlite3
 import logging
@@ -43,11 +44,7 @@ root_logger.addHandler(file_handler)
 
 logger = logging.getLogger(__name__)
 
-DB_PATH = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-    "data",
-    "scraper.db",
-)
+DB_PATH = db_schema.default_path()
 
 
 def get_db_connection():
@@ -104,7 +101,64 @@ def run_route_mode(args):
     """
     import route_pipeline
 
+    if args.mode == "route-preview":
+        if not args.origin or not args.destination:
+            logger.error("route-preview needs --from and --to")
+            return
+        if not args.urls:
+            logger.error("route-preview needs --urls with one search URL")
+            return
+
+        import json as _json
+
+        import route_search
+        import routing
+
+        client = routing.OsrmClient()
+        try:
+            # Same resolution the real creation uses, so what is drawn is what
+            # would be built — a preview that plans a different route than the
+            # commit would is worse than no preview.
+            start = route_pipeline.resolve_place(args.origin)
+            end = route_pipeline.resolve_place(args.destination)
+            plan = route_search.plan(
+                args.urls[0],
+                client.route([start, end]),
+                radius_km=args.radius_km,
+                half_width_km=args.corridor_km,
+            )
+        except ValueError as error:
+            print(f"__ROUTE_PREVIEW_ERROR__:{error}")
+            return
+
+        payload = plan.as_dict()
+        # The polyline is thousands of points and a map does not need them all;
+        # what the caller is drawing is the shape, not the kerb.
+        payload["polyline"] = _thin(payload["polyline"], 400)
+        payload.pop("segment_durations", None)
+        print("__ROUTE_PREVIEW__:" + _json.dumps(payload))
+        return
+
     conn = get_db_connection()
+
+    if args.mode == "route-replan":
+        if not args.route_id:
+            logger.error("route-replan needs --route-id")
+            return
+        try:
+            kept, added, removed, plan = route_pipeline.replan(
+                conn,
+                args.route_id,
+                radius_km=args.radius_km,
+                half_width_km=args.corridor_km,
+            )
+        except ValueError as error:
+            print(f"__ROUTE_REPLAN_ERROR__:{error}")
+            return
+        print(f"__ROUTE_REPLANNED__:{kept} kept, {added} added, {removed} removed")
+        for index, circle in enumerate(plan.circles, 1):
+            print(f"  {index}. r{circle.radius_km:<3} {circle.label}")
+        return
 
     if args.mode == "route-create":
         if not args.origin or not args.destination:
@@ -151,6 +205,17 @@ def run_route_mode(args):
     )
 
 
+def _thin(points, limit):
+    """Every nth point, keeping both ends. A map draws the shape, not the kerb."""
+    if len(points) <= limit:
+        return points
+    step = len(points) / float(limit)
+    thinned = [points[int(index * step)] for index in range(limit)]
+    if thinned[-1] != points[-1]:
+        thinned.append(points[-1])
+    return thinned
+
+
 def main():
     """Main entry point that acts as a wrapper for different functionalities"""
     parser = argparse.ArgumentParser(
@@ -164,13 +229,15 @@ def main():
             "both",
             "preview",
             "update-all",
+            "route-preview",
+            "route-replan",
             "route-create",
             "route-annotate",
         ],
         default="both",
         help=(
             "Operation mode: scrape, process, both, preview, update-all, "
-            "route-create, or route-annotate"
+            "route-preview, route-create, or route-annotate"
         ),
     )
     parser.add_argument(
@@ -253,7 +320,12 @@ def main():
 
     args = parser.parse_args()
 
-    if args.mode in ("route-create", "route-annotate"):
+    if args.mode in (
+        "route-preview",
+        "route-replan",
+        "route-create",
+        "route-annotate",
+    ):
         run_route_mode(args)
         return
 

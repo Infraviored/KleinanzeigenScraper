@@ -183,3 +183,42 @@ def test_db_setup_writes_where_it_is_pointed(fresh_db):
     assert result.returncode == 0, result.stderr
     assert fresh_db in result.stdout
     assert "campaigns" in tables(sqlite3.connect(fresh_db))
+
+
+def test_every_runtime_obeys_the_same_database_variable(fresh_db):
+    """PRISMDEALS_DB has to mean the same thing on both sides.
+
+    It cost twice in one evening. backend/db_setup.js ignored it and deleted the
+    production database while being pointed at a temporary one. With that fixed,
+    scraper/main.py still ignored it, so a route "replanned against a copy" was
+    replanned against production.
+
+    A variable that some processes obey and others quietly do not is worse than
+    one nobody obeys: it reads as a safety measure while being none.
+    """
+    node = subprocess.run(
+        [
+            "node",
+            "-e",
+            "console.log(process.env.PRISMDEALS_DB || "
+            "require('path').join(__dirname,'..','data','scraper.db'))",
+        ],
+        cwd=os.path.join(ROOT, "backend"),
+        env={**os.environ, "PRISMDEALS_DB": fresh_db},
+        capture_output=True,
+        text=True,
+    )
+    python = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "import sys; sys.path.insert(0, %r); import db_schema; "
+            "print(db_schema.default_path())" % os.path.join(ROOT, "scraper"),
+        ],
+        env={**os.environ, "PRISMDEALS_DB": fresh_db},
+        capture_output=True,
+        text=True,
+    )
+
+    assert node.stdout.strip() == fresh_db, node.stderr
+    assert python.stdout.strip() == fresh_db, python.stderr

@@ -91,3 +91,27 @@ def connect(path, **kwargs):
 def reset_cache():
     """Forget which databases have been brought up to date. For tests."""
     _APPLIED.clear()
+
+
+def default_path():
+    """Which database this process should open.
+
+    `PRISMDEALS_DB` is honoured here for the same reason it is honoured by the
+    backend: the two sides must agree on which file they mean. They did not, and
+    it cost twice in one evening. First `backend/db_setup.js` ignored the
+    variable and deleted the production database while being pointed at a
+    temporary one. Then, with that fixed, `scraper/main.py` still ignored it —
+    so a route replanned "against a copy" was replanned against production.
+
+    An environment variable that some processes obey and others quietly do not
+    is worse than one nobody obeys: it reads as a safety measure while being
+    none.
+    """
+    override = os.environ.get("PRISMDEALS_DB")
+    if override:
+        return override
+    return os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        "data",
+        "scraper.db",
+    )

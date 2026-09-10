@@ -175,6 +175,28 @@ def walk(driver, base, out_dir, width, height):
             time.sleep(2)
             shoot(driver, out_dir, f"04-corridor-dashboard-{identifier}")
 
+            # The corridor stays editable from the results: open the planner and
+            # let it draw, so the preview map is actually photographed rather
+            # than assumed to work.
+            try:
+                for btn in driver.find_elements(By.CSS_SELECTOR, "button"):
+                    if "corridor settings" in (btn.text or "").lower():
+                        driver.execute_script("arguments[0].click();", btn)
+                        # The preview is a routing request behind a debounce.
+                        time.sleep(4)
+                        shoot(driver, out_dir, f"04b-corridor-planner-{identifier}")
+                        for cancel in driver.find_elements(By.CSS_SELECTOR, "button"):
+                            if (cancel.text or "").strip().lower() in (
+                                "cancel",
+                                "abbrechen",
+                            ):
+                                driver.execute_script("arguments[0].click();", cancel)
+                                break
+                        time.sleep(1)
+                        break
+            except Exception as error:
+                print(f"  ! could not open the corridor planner: {error}")
+
             # Click "Evaluate these with AI ->" to show that the wizard is a deliberate choice
             eval_btn = None
             try:

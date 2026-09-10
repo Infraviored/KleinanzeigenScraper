@@ -7,8 +7,9 @@ import { Button } from './ui/Button';
 import { Card } from './ui/Card';
 import { Input } from './ui/Input';
 import { Select } from './ui/Select';
-import { Search, Sparkles, Navigation, Clock, ExternalLink, RefreshCw, Filter } from 'lucide-react';
+import { Search, Sparkles, Navigation, Clock, ExternalLink, RefreshCw, Filter, SlidersHorizontal } from 'lucide-react';
 import ScraperProgressCard from './ScraperProgressCard';
+import CorridorPlanner from './CorridorPlanner';
 import type { ScraperProgressCardProps } from '../types';
 
 export interface RouteCorridorData {
@@ -16,6 +17,7 @@ export interface RouteCorridorData {
     id: number;
     campaign_id: number;
     name: string;
+    base_url: string;
     origin: string;
     destination: string;
     radius_km: number;
@@ -65,6 +67,10 @@ export default function RouteResultsView({
   const [error, setError] = useState<string | null>(null);
 
   // Filters and sorting
+  const [editingCorridor, setEditingCorridor] = useState(false);
+  const [redrawing, setRedrawing] = useState(false);
+  const [draftRadiusKm, setDraftRadiusKm] = useState(30);
+  const [draftCorridorKm, setDraftCorridorKm] = useState(15);
   const [selectedDetourMax, setSelectedDetourMax] = useState<'all' | '15' | '30' | '60'>('all');
   const [sortBy, setSortBy] = useState<'detour' | 'price'>('detour');
   const [searchQuery, setSearchQuery] = useState('');
@@ -178,7 +184,7 @@ export default function RouteResultsView({
 
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div className="space-y-1.5">
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
               <span className="text-2xs font-mono font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-full uppercase tracking-wider">
                 {t('routeResults.corridorResults')}
               </span>
@@ -191,7 +197,9 @@ export default function RouteResultsView({
                   })}
                 </span>
               )}
-              <span className="text-2xs text-slate-500">·</span>
+              {/* Spacing separates these, not a middle dot. The dot dangled at
+                  the end of one line while the thing it separated sat alone on
+                  the next, and it was never carrying meaning to begin with. */}
               <span className="text-2xs text-slate-400 font-semibold">
                 {t('routeResults.searchCirclesCount', { count: route.circles.length })}
               </span>
@@ -239,6 +247,20 @@ export default function RouteResultsView({
             </Button>
 
             <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                setDraftRadiusKm(routeData.route.radius_km);
+                setDraftCorridorKm(routeData.route.half_width_km);
+                setEditingCorridor(true);
+              }}
+              className="py-2.5 px-4 font-bold flex items-center gap-2"
+            >
+              <SlidersHorizontal className="w-4 h-4" />
+              <span>{t('corridor.editSettings')}</span>
+            </Button>
+
+            <Button
               id="btn-evaluate-ai"
               variant="action-indigo"
               size="sm"
@@ -251,6 +273,55 @@ export default function RouteResultsView({
           </div>
         </div>
       </Card>
+
+      {editingCorridor && (
+        <Card className="p-5 space-y-4 animate-fadeIn">
+          <div className="space-y-1">
+            <h3 className="text-lg font-bold text-text-primary">{t('corridor.editSettings')}</h3>
+            <p className="text-sm text-text-muted">{t('corridor.widthHint')}</p>
+          </div>
+          <CorridorPlanner
+            baseUrl={route.base_url}
+            origin={route.origin}
+            destination={route.destination}
+            originName={route.origin}
+            destinationName={route.destination}
+            radiusKm={draftRadiusKm}
+            corridorKm={draftCorridorKm}
+            onRadiusChange={setDraftRadiusKm}
+            onCorridorChange={setDraftCorridorKm}
+            committing={redrawing}
+            commitLabel={t('corridor.commitChange')}
+            onCancel={() => setEditingCorridor(false)}
+            onCommit={async () => {
+              setRedrawing(true);
+              try {
+                const res = await fetch(`/api/route-searches/${route.id}`, {
+                  method: 'PUT',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    radius_km: draftRadiusKm,
+                    corridor_km: draftCorridorKm,
+                  }),
+                });
+                const data = await res.json();
+                if (!res.ok) {
+                  setError(data.error || 'network_error');
+                  return;
+                }
+                // The endpoint answers with the redrawn corridor, so the
+                // results behind this panel are already the new ones.
+                setRouteData(data);
+                setEditingCorridor(false);
+              } catch {
+                setError('network_error');
+              } finally {
+                setRedrawing(false);
+              }
+            }}
+          />
+        </Card>
+      )}
 
       {/* Scraper Progress Tracker (if active) */}
       <ScraperProgressCard

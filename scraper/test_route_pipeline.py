@@ -370,3 +370,102 @@ def test_a_search_created_concurrently_is_adopted_not_crashed_into(conn):
 
     urls = conn.execute("SELECT COUNT(*), COUNT(DISTINCT url) FROM searches").fetchone()
     assert urls[0] == urls[1], "and no duplicate url was created"
+
+
+# --- redrawing a corridor after the fact ----------------------------------
+
+
+def test_replanning_a_corridor_keeps_what_it_already_found(conn):
+    """Widening a corridor must not throw away the listings already in it.
+
+    The reason to widen one is that something was missed, and starting over
+    would discard the very listings that are the evidence for widening.
+    """
+    route_id, plan = make_route(conn, half_width_km=15.0)
+    kept_url = plan.circles[0].url
+    conn.execute(
+        "INSERT INTO listings (id, title, search_id) "
+        "SELECT 'listing-1', 'A wardrobe', id FROM searches WHERE url = ?",
+        (kept_url,),
+    )
+    conn.commit()
+
+    kept, added, removed, _ = route_pipeline.replan(
+        conn,
+        route_id,
+        radius_km=30.0,
+        half_width_km=5.0,
+        client=FakeOsrm(),
+        resolver=route_search.LocationResolver(fetch=suggest),
+    )
+
+    assert kept >= 1, "a circle that survives keeps its search row"
+    assert (
+        conn.execute(
+            "SELECT COUNT(*) FROM listings l JOIN searches s ON s.id = l.search_id "
+            "WHERE s.url = ?",
+            (kept_url,),
+        ).fetchone()[0]
+        == 1
+    ), "and its listings come with it"
+
+
+def test_a_wider_corridor_needs_more_circles(conn):
+    """d = 2*sqrt(r^2 - w^2). Widening the corridor shortens the spacing.
+
+    It reads backwards until the geometry is in view — a wider corridor sounds
+    like fewer, larger circles — and I had this the wrong way round in this
+    test's name until the API said otherwise: at r=30 the same 201 km route
+    takes 5 searches at w=5 and 6 at w=20. The preview shows this number before
+    anyone commits to it, so it had better be right.
+    """
+    route_id, narrow = make_route(conn, half_width_km=5.0)
+
+    _, _, _, wide = route_pipeline.replan(
+        conn,
+        route_id,
+        radius_km=30.0,
+        half_width_km=25.0,
+        client=FakeOsrm(),
+        resolver=route_search.LocationResolver(fetch=suggest),
+    )
+
+    assert len(wide.circles) > len(narrow.circles)
+
+
+def test_replanning_gives_listings_beyond_the_old_edge_another_look(conn):
+    """A listing marked too_far was judged against the corridor as it was.
+
+    Redraw it and that judgement is stale. Listings already routed keep their
+    detour: the route has not moved, only which listings count as being on it.
+    """
+    route_id, _ = make_route(conn)
+    conn.executemany(
+        "INSERT INTO listing_route_geo "
+        "(listing_id, route_search_id, detour_min, status, computed_at) "
+        "VALUES (?, ?, ?, ?, '2026-01-01')",
+        [
+            ("far-one", route_id, None, "too_far"),
+            ("near-one", route_id, 12.0, "routed"),
+        ],
+    )
+    conn.commit()
+
+    route_pipeline.replan(
+        conn,
+        route_id,
+        radius_km=30.0,
+        half_width_km=5.0,
+        client=FakeOsrm(),
+        resolver=route_search.LocationResolver(fetch=suggest),
+    )
+
+    statuses = dict(
+        conn.execute(
+            "SELECT listing_id, status FROM listing_route_geo "
+            "WHERE route_search_id = ?",
+            (route_id,),
+        )
+    )
+    assert statuses["far-one"] == "failed", "queued for another look"
+    assert statuses["near-one"] == "routed", "an answered listing stays answered"

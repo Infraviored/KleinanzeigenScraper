@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import type { Campaign, KnowledgeSet, SearchTarget, Listing, SampleListing } from './types'
 import ScraperProgressCard from './components/ScraperProgressCard'
+import CorridorPlanner from './components/CorridorPlanner'
 import PlaceInput from './components/PlaceInput'
 import type { Place } from './components/PlaceInput'
 import ListingDetailCard from './components/ListingDetailCard'
@@ -1795,77 +1796,35 @@ export default function App() {
                         />
                       </div>
 
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-1.5">
-                          <label htmlFor="route-corridor" className="text-2xs text-slate-500 font-bold uppercase tracking-wider block">
-                            {t('common.routeCorridor')}: <span className="text-slate-300 font-mono">{routeCorridorKm} km</span>
-                          </label>
-                          <input
-                            id="route-corridor"
-                            type="range"
-                            min={5}
-                            max={routeRadiusKm - 5}
-                            step={5}
-                            value={routeCorridorKm}
-                            onChange={e => setRouteCorridorKm(Number(e.target.value))}
-                            className="w-full accent-emerald-500"
-                          />
-                        </div>
-                        <div className="space-y-1.5">
-                          <label htmlFor="route-radius" className="text-2xs text-slate-500 font-bold uppercase tracking-wider block">
-                            {t('common.routeRadius')}: <span className="text-slate-300 font-mono">{routeRadiusKm} km</span>
-                          </label>
-                          <input
-                            id="route-radius"
-                            type="range"
-                            min={20}
-                            max={60}
-                            step={5}
-                            value={routeRadiusKm}
-                            onChange={e => {
-                              const next = Number(e.target.value);
-                              setRouteRadiusKm(next);
-                              // A corridor at least as wide as the circles cannot
-                              // be covered at any spacing, so it cannot be asked for.
-                              if (routeCorridorKm > next - 5) setRouteCorridorKm(next - 5);
-                            }}
-                            className="w-full accent-emerald-500"
-                          />
-                        </div>
-                      </div>
-
-                      {(() => {
-                        // What is still missing, in the order the form asks for
-                        // it. A disabled control that does not say why is a dead
-                        // end; naming the next step turns it into an instruction.
-                        const blocker =
-                          !newTargetUrl || !isValidKleinanzeigenUrl(newTargetUrl)
+                      {/* The corridor is only a question once both ends are
+                          known. Until then the sliders would be adjusting a
+                          shape nobody can see. */}
+                      {routeFrom && routeTo ? (
+                        <CorridorPlanner
+                          baseUrl={newTargetUrl}
+                          origin={routeFrom.postal_code}
+                          destination={routeTo.postal_code}
+                          originName={routeFrom.name}
+                          destinationName={routeTo.name}
+                          radiusKm={routeRadiusKm}
+                          corridorKm={routeCorridorKm}
+                          onRadiusChange={setRouteRadiusKm}
+                          onCorridorChange={setRouteCorridorKm}
+                          onCommit={handlePlanCorridor}
+                          committing={routePlanning}
+                          commitLabel={t('corridor.commitNew')}
+                        />
+                      ) : (
+                        <p className="text-2xs text-text-muted text-center py-2">
+                          {!newTargetUrl || !isValidKleinanzeigenUrl(newTargetUrl)
                             ? t('common.routeNeedsUrl')
                             : !routeFrom && !routeTo
                               ? t('common.routeNeedsBoth')
                               : !routeFrom
                                 ? t('common.routeNeedsFrom')
-                                : !routeTo
-                                  ? t('common.routeNeedsTo')
-                                  : null;
-
-                        return (
-                          <div className="space-y-2">
-                            <button
-                              type="button"
-                              onClick={handlePlanCorridor}
-                              disabled={routePlanning || blocker !== null}
-                              aria-describedby={blocker ? 'route-blocker' : undefined}
-                              className="w-full rounded-xl bg-emerald-500/15 text-emerald-300 border border-emerald-500/20 px-4 py-3 text-base font-bold hover:bg-emerald-500/25 disabled:bg-slate-900/60 disabled:text-slate-600 disabled:border-slate-800 disabled:cursor-not-allowed transition-colors"
-                            >
-                              {routePlanning ? t('common.planningCorridor') : t('common.planCorridor')}
-                            </button>
-                            {blocker && !routePlanning && (
-                              <p id="route-blocker" className="text-2xs text-slate-500 text-center">{blocker}</p>
-                            )}
-                          </div>
-                        );
-                      })()}
+                                : t('common.routeNeedsTo')}
+                        </p>
+                      )}
 
                       {routeError && (
                         <div className="text-xs bg-rose-500/10 text-rose-400 px-3.5 py-2.5 rounded-xl border border-rose-500/10 font-bold animate-fadeIn">

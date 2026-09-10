@@ -18,6 +18,7 @@ scraper's path: if routing is down, listings still arrive, they simply arrive
 without a detour until the next annotate run.
 """
 
+import json
 import logging
 
 import geo
@@ -251,3 +252,103 @@ def ranked(conn, route_search_id):
             listing.get("detour_min") or 0.0,
         ),
     )
+
+
+def replan(conn, route_search_id, radius_km, half_width_km, client=None, resolver=None):
+    """Redraws an existing corridor at a new radius and width.
+
+    A corridor is a guess before it is a decision: too narrow and the wardrobe
+    two towns over never appears, too wide and it is a hundred searches against
+    a site that starts refusing. So it has to be changeable after the fact, and
+    changing it must not mean starting again — the listings already found are
+    the reason anyone would want to widen it.
+
+    Circles that survive the new plan keep their search row, and with it
+    everything already scraped. Circles that fall out are detached from the
+    route rather than deleted: their listings stay in the campaign, they simply
+    stop counting as corridor finds. New circles are registered as usual.
+
+    Returns (kept, added, removed).
+    """
+    import route_search
+    import route_store
+
+    route_store.ensure_schema(conn)
+    row = conn.execute(
+        "SELECT base_url, origin, destination, name, campaign_id, knowledge_set_id "
+        "FROM route_searches WHERE id = ?",
+        (route_search_id,),
+    ).fetchone()
+    if row is None:
+        raise ValueError(f"No route search with id {route_search_id}")
+
+    base_url, origin, destination, name, campaign_id, knowledge_set_id = row
+
+    client = client or routing.OsrmClient()
+    start = resolve_place(origin)
+    end = resolve_place(destination)
+    plan = route_search.plan(
+        base_url,
+        client.route([start, end]),
+        radius_km=radius_km,
+        half_width_km=half_width_km,
+        resolver=resolver,
+    )
+    if not plan.circles:
+        raise ValueError(
+            "No circle centre could be resolved to a location, so this corridor "
+            "cannot be redrawn at that radius."
+        )
+
+    before = {
+        url
+        for (url,) in conn.execute(
+            "SELECT s.url FROM route_search_circles c JOIN searches s "
+            "ON s.id = c.search_id WHERE c.route_search_id = ?",
+            (route_search_id,),
+        )
+    }
+
+    # The circles are replaced wholesale; the search rows behind them are not,
+    # because save_plan reuses any search whose url already exists. A circle
+    # that survives therefore keeps its listings without anything special
+    # happening here.
+    conn.execute(
+        "DELETE FROM route_search_circles WHERE route_search_id = ?",
+        (route_search_id,),
+    )
+    conn.execute(
+        "UPDATE route_searches SET radius_km = ?, half_width_km = ?, plan_json = ? "
+        "WHERE id = ?",
+        (
+            plan.radius_km,
+            plan.half_width_km,
+            json.dumps(plan.as_dict(), ensure_ascii=False),
+            route_search_id,
+        ),
+    )
+
+    conflicts = route_store.attach_circles(
+        conn,
+        route_search_id,
+        plan,
+        name=name,
+        destination=destination,
+        campaign_id=campaign_id,
+        knowledge_set_id=knowledge_set_id,
+    )
+    plan.conflicts = conflicts
+
+    after = {circle.url for circle in plan.circles}
+
+    # Detours were computed against the old shape. The route itself has not
+    # moved, so they are still right — but a listing that was beyond the old
+    # cutoff may be inside the new one, and those are marked for another look.
+    conn.execute(
+        "UPDATE listing_route_geo SET status = 'failed', detour_min = NULL "
+        "WHERE route_search_id = ? AND status = 'too_far'",
+        (route_search_id,),
+    )
+    conn.commit()
+
+    return len(before & after), len(after - before), len(before - after), plan

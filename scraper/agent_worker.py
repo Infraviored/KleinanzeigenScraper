@@ -1,5 +1,6 @@
 import os
 import sys
+import db_schema
 import json
 import sqlite3
 import datetime
@@ -99,11 +100,7 @@ def build_llm_kwargs(messages, max_tokens, temperature=0.0):
 
 extractor = EvidenceExtractor()
 
-DB_PATH = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-    "data",
-    "scraper.db",
-)
+DB_PATH = db_schema.default_path()
 
 
 def get_db_connection():
