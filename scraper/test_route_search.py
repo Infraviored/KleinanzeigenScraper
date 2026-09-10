@@ -307,20 +307,54 @@ def test_a_listing_beside_a_short_route_is_not_charged_a_full_round_trip():
     assert one_way < minutes < 2 * one_way
 
 
+def there_and_back_route():
+    """Out 20 km east, then back the same way — 40 km driven, 0 km net."""
+    out = [(48.0, 10.0 + step * 0.0268) for step in range(11)]
+    return straight_line_route(out + list(reversed(out))[1:]), out
+
+
 def test_a_route_that_doubles_back_does_not_invent_a_detour():
-    """The case the reviewer found. Anchors 15 km apart along a there-and-back
-    trip can be neighbours on the same road; asking the router for the time
-    between them answers with the shortcut, not with the drive. A listing
-    directly on the outbound leg was charged 22 minutes it does not cost."""
-    out = [(48.0, 10.0 + step * 0.0268) for step in range(11)]  # ~20 km east
-    back = list(reversed(out))[1:]  # and back again
-    route = straight_line_route(out + back)
+    """Anchors 15 km apart along a there-and-back trip can be neighbours on the
+    same road; asking the router for the time between them answers with the
+    shortcut, not with the drive. A listing directly on the outbound leg was
+    charged 22 minutes it does not cost."""
+    route, out = there_and_back_route()
 
-    on_the_outbound_leg = out[9]  # ~18 km along, exactly on the road
+    minutes = routing.detour_minutes(FakeOsrm(), route, out[9])
 
-    minutes = routing.detour_minutes(FakeOsrm(), route, on_the_outbound_leg)
+    assert minutes == pytest.approx(0, abs=1.5)
 
-    assert minutes == pytest.approx(0, abs=1.0)
+
+def test_a_detour_near_a_turnaround_is_charged_rather_than_clamped_to_zero():
+    """The trap in the first fix, and the reason the test above is not enough on
+    its own: correcting only the reference half made `via` the shorter of the two
+    near a turnaround, so `max(0.0, ...)` reported every such listing as free. A
+    listing genuinely off the road must still cost something."""
+    route, out = there_and_back_route()
+
+    beside_the_outbound_leg = (out[9][0] + 0.045, out[9][1])  # ~5 km north
+
+    minutes = routing.detour_minutes(FakeOsrm(), route, beside_the_outbound_leg)
+
+    assert minutes > 2.0, "a real diversion must not be clamped away"
+
+
+def test_both_halves_of_the_comparison_follow_the_same_path():
+    """`direct` walks the polyline, so `via` is given the polyline's own points as
+    waypoints. Without them the two halves describe different journeys and the
+    subtraction means nothing."""
+    route, out = there_and_back_route()
+    seen = []
+
+    class Recording(FakeOsrm):
+        def duration_s(self, points):
+            seen.append(points)
+            return super().duration_s(points)
+
+    routing.detour_minutes(Recording(), route, out[9])
+
+    assert len(seen) == 1, "only the leg containing the listing is a request"
+    assert len(seen[0]) > 3, "the route's own points are fed back in"
 
 
 def test_the_reference_time_is_read_off_the_route_not_re_routed():

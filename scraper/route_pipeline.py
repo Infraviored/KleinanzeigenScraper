@@ -173,8 +173,17 @@ def annotate(
         coordinates = _coordinates_for(listing, gazetteer)
         if coordinates is None:
             unplaceable += 1
-            # Recorded, so an unplaceable listing is not retried on every run.
-            route_store.save_geo(conn, route_search_id, listing["id"], None, None, None)
+            # Recorded as settled, so an unplaceable listing is not retried on
+            # every run — no amount of asking will give it coordinates.
+            route_store.save_geo(
+                conn,
+                route_search_id,
+                listing["id"],
+                None,
+                None,
+                None,
+                status=route_store.UNPLACEABLE,
+            )
             continue
         located.append(dict(listing, coordinates=coordinates))
 
@@ -182,10 +191,17 @@ def annotate(
         client, route, located, max_offroute_km=max_offroute_km
     )
 
-    too_far = 0
+    too_far = failed = 0
     for listing in annotated:
         if listing.get("too_far"):
+            status = route_store.TOO_FAR
             too_far += 1
+        elif listing.get("failed"):
+            status = route_store.FAILED
+            failed += 1
+        else:
+            status = route_store.ROUTED
+
         route_store.save_geo(
             conn,
             route_search_id,
@@ -193,23 +209,26 @@ def annotate(
             listing.get("coordinates"),
             listing.get("offroute_km"),
             listing.get("detour_min"),
+            status=status,
         )
 
     summary = {
         "considered": len(pending),
-        "routed": len(annotated) - too_far,
+        "routed": len(annotated) - too_far - failed,
         "too_far": too_far,
         "unplaceable": unplaceable,
+        "failed": failed,
     }
     logger.info(
         "Route %s: %d listings considered, %d routed, %d beyond %.0f km, "
-        "%d without a resolvable place.",
+        "%d without a resolvable place, %d failed and will be retried.",
         route_search_id,
         summary["considered"],
         summary["routed"],
         too_far,
         max_offroute_km,
         unplaceable,
+        failed,
     )
     return summary
 

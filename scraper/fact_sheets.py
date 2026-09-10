@@ -10,25 +10,18 @@ sheet instead of calling a model, so adding a buyer costs no tokens at all.
 """
 
 import json
+import db_schema
 import logging
 
 logger = logging.getLogger(__name__)
 
-SCHEMA = """
-CREATE TABLE IF NOT EXISTS fact_sheets (
-    listing_id      TEXT NOT NULL,
-    playbook_key    TEXT NOT NULL,
-    playbook_version INTEGER NOT NULL,
-    facts_json      TEXT NOT NULL,
-    source_hash     TEXT,
-    extracted_at    TEXT NOT NULL,
-    PRIMARY KEY (listing_id, playbook_key)
-);
-"""
+# The fact_sheets DDL lives in db/schema.sql, applied by db_schema.
+# It was declared here too until the two copies began to drift.
 
 
 def ensure_schema(conn):
-    conn.executescript(SCHEMA)
+    """Bring the connection up to db/schema.sql."""
+    db_schema.apply_schema(conn)
     conn.commit()
 
 

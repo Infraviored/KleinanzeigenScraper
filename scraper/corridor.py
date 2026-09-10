@@ -201,3 +201,109 @@ def nearest_vertex_index(point, polyline):
         range(len(polyline)),
         key=lambda index: haversine_km(point, polyline[index]),
     )
+
+
+# A stretch of route over which the direction of travel swings by more than this
+# has turned around. Measured over a window rather than at a single vertex: a
+# driver turns via a roundabout, a slip road or a pair of junctions, and each of
+# the eight or ten points that describes one deflects by only twenty or thirty
+# degrees. Looking for a sharp corner finds the U-turn drawn as one vertex and
+# misses every turnaround that a real road actually offers.
+REVERSAL_DEGREES = 120.0
+
+# How far the swing may take. Long enough for a motorway interchange loop, short
+# enough that a winding valley road -- which also turns 120 degrees, over
+# kilometres, while going somewhere -- is not mistaken for one.
+REVERSAL_WINDOW_KM = 1.5
+
+
+def _bearing(start_point, end_point):
+    """Direction of travel between two points, in degrees."""
+    lat_scale, lon_scale = _km_per_degree(start_point[0])
+    east = (end_point[1] - start_point[1]) * lon_scale
+    north = (end_point[0] - start_point[0]) * lat_scale
+    if east == 0 and north == 0:
+        return None
+    return math.degrees(math.atan2(east, north))
+
+
+def _angle_between(first, second):
+    """Smallest angle between two bearings, 0-180."""
+    difference = abs(first - second) % 360.0
+    return difference if difference <= 180.0 else 360.0 - difference
+
+
+def reversal_points(
+    polyline,
+    from_km=None,
+    to_km=None,
+    threshold_deg=REVERSAL_DEGREES,
+    window_km=REVERSAL_WINDOW_KM,
+):
+    """Arc lengths at which the route turns back on itself.
+
+    These are the points a router must be told about. Handed two positions on
+    either side of a turnaround, it drives straight between them -- correct for a
+    router, wrong for us, because the driver is going round the turn. Everything
+    between two consecutive waypoints is the router's choice, so a turnaround
+    falling in such a gap is silently cut off.
+
+    Returns the middle of each turn, which is the point worth passing through.
+    """
+    if len(polyline) < 3:
+        return []
+
+    totals = cumulative_km(polyline)
+    found = []
+    index = 1
+
+    while index < len(polyline) - 1:
+        here = totals[index]
+        if (from_km is not None and here <= from_km) or (
+            to_km is not None and here >= to_km
+        ):
+            index += 1
+            continue
+
+        # The direction being travelled just before this point...
+        incoming = _bearing(polyline[index - 1], polyline[index])
+        if incoming is None:
+            index += 1
+            continue
+
+        # ...against the direction at every point within the window ahead.
+        end = index + 1
+        turned_at = None
+        while end < len(polyline):
+            # The next segment always counts, however long it is: a route drawn
+            # with two kilometres between vertices turns around between two of
+            # them, and a window smaller than one step would never look at it.
+            # Past that first step, the window decides.
+            if end > index + 1 and totals[end] - here > window_km:
+                break
+            outgoing = _bearing(polyline[end - 1], polyline[end])
+            if (
+                outgoing is not None
+                and _angle_between(incoming, outgoing) >= threshold_deg
+            ):
+                turned_at = end
+                break
+            end += 1
+
+        if turned_at is None:
+            index += 1
+            continue
+
+        # The middle of the turn, so the waypoint sits on the loop rather than
+        # at the moment the swing completes.
+        middle = (here + totals[turned_at]) / 2.0
+        found.append(middle)
+
+        # Clear of the whole turn before looking again. Resuming just past the
+        # point where the swing completed lands inside the same loop, whose
+        # second half then reads as a second turnaround.
+        index = turned_at + 1
+        while index < len(polyline) - 1 and totals[index] - middle <= window_km:
+            index += 1
+
+    return found

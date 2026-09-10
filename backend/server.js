@@ -13,8 +13,13 @@ try {
 }
 
 const app = express();
-const port = 3030;
+// Port and database are overridable so a throwaway instance can be started
+// beside the real one — which is what makes it possible to look at the
+// interface at all. Without it, every screen behind the login is unverifiable
+// except by asking the owner to describe what they see.
+const port = Number(process.env.PRISMDEALS_PORT) || 3030;
 const { spawn } = require('child_process');
+const places = require('./places');
 const sqlite3 = require('sqlite3').verbose();
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
@@ -25,89 +30,87 @@ if (process.env.NODE_ENV === 'production' && !process.env.JWT_SECRET) {
 const JWT_SECRET = process.env.JWT_SECRET || 'prismdeals_dev_secret_key_12345';
 
 // Database setup
-const dbPath = path.join(__dirname, '..', 'data', 'scraper.db');
+const dbPath = process.env.PRISMDEALS_DB || path.join(__dirname, '..', 'data', 'scraper.db');
 const db = new sqlite3.Database(dbPath);
 // WAL mode allows multiple concurrent readers/writers (parallel agent evals)
 db.run('PRAGMA journal_mode=WAL;');
 db.run('PRAGMA busy_timeout=5000;');
+// SQLite ignores foreign keys unless asked, per connection. Without this the
+// ON DELETE CASCADE declarations in the schema are decoration: deleting a
+// campaign removed one row and left its searches, listings and messages behind
+// as orphans that nothing could reach and nothing would clean up.
+const { applySchema } = require('./db/schema');
 
-// Perform database schema migration on startup (non-destructive)
-db.serialize(() => {
-  // Create users table and seed default user if empty
-  db.run(`
-    CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      email TEXT UNIQUE NOT NULL,
-      password_hash TEXT NOT NULL,
-      role TEXT NOT NULL
-    )
-  `, (err) => {
+// One schema, in db/schema.sql, applied by both runtimes. It used to live in
+// five places, and the campaign dashboard returned 500 on every fresh install
+// because this file queried route_searches while only Python created it.
+applySchema(db)
+  .then(() => seedDefaultUser())
+  .catch(err => {
+    console.error('Could not bring the database up to db/schema.sql:', err.message);
+    process.exit(1);
+  });
+
+function seedDefaultUser() {
+  db.get("SELECT COUNT(*) as count FROM users", (err, row) => {
     if (err) {
-      console.error("Failed to create users table:", err);
+      console.error("Failed to query users count:", err);
       return;
     }
-    db.get("SELECT COUNT(*) as count FROM users", (err, row) => {
+    if (row.count > 0) return;
+
+    const defaultEmail = process.env.DEFAULT_ADMIN_EMAIL || 'admin@prismdeals.local';
+    let defaultPassword = process.env.DEFAULT_ADMIN_PASSWORD;
+    if (process.env.NODE_ENV === 'production' && !defaultPassword) {
+      console.error("FATAL: DEFAULT_ADMIN_PASSWORD environment variable is required in production to seed the default admin user!");
+      process.exit(1);
+    }
+    if (!defaultPassword) {
+      defaultPassword = 'password';
+    }
+
+    bcrypt.hash(defaultPassword, 10, (err, hash) => {
       if (err) {
-        console.error("Failed to query users count:", err);
+        console.error("Failed to hash default password:", err);
         return;
       }
-      if (row.count === 0) {
-        const defaultEmail = process.env.DEFAULT_ADMIN_EMAIL || 'admin@prismdeals.local';
-        let defaultPassword = process.env.DEFAULT_ADMIN_PASSWORD;
-        if (process.env.NODE_ENV === 'production' && !defaultPassword) {
-          console.error("FATAL: DEFAULT_ADMIN_PASSWORD environment variable is required in production to seed the default admin user!");
-          process.exit(1);
+      db.run(
+        "INSERT INTO users (email, password_hash, role) VALUES (?, ?, ?)",
+        [defaultEmail, hash, 'admin'],
+        (err) => {
+          if (err) console.error("Failed to seed default admin user:", err);
+          else console.log(`Seeded default admin user: ${defaultEmail}`);
         }
-        if (!defaultPassword) {
-          defaultPassword = 'password';
-        }
-        const saltRounds = 10;
-        
-        bcrypt.hash(defaultPassword, saltRounds, (err, hash) => {
-          if (err) {
-            console.error("Failed to hash default password:", err);
-            return;
-          }
-          db.run("INSERT INTO users (email, password_hash, role) VALUES (?, ?, ?)", 
-            [defaultEmail, hash, 'admin'], 
-            (err) => {
-              if (err) console.error("Failed to seed default admin user:", err);
-              else console.log(`Seeded default admin user: ${defaultEmail}`);
-            }
-          );
-        });
-      }
+      );
     });
   });
 
-  db.all("PRAGMA table_info(listings)", (err, rows) => {
-    if (err) {
-      console.error('Error reading table info:', err);
-      return;
-    }
-    const columns = rows.map(r => r.name);
-    
-    if (!columns.includes('last_description_changed_at')) {
-      db.run("ALTER TABLE listings ADD COLUMN last_description_changed_at TEXT", (err) => {
-        if (err) console.error("Failed to add last_description_changed_at column:", err);
-        else {
-          console.log("Added column: last_description_changed_at");
-          db.run("UPDATE listings SET last_description_changed_at = COALESCE(llm_processed_time, datetime('now', 'localtime'))");
-        }
-      });
-    }
-    
-    if (!columns.includes('last_ai_evaluated_at')) {
-      db.run("ALTER TABLE listings ADD COLUMN last_ai_evaluated_at TEXT", (err) => {
-        if (err) console.error("Failed to add last_ai_evaluated_at column:", err);
-        else {
-          console.log("Added column: last_ai_evaluated_at");
-          db.run("UPDATE listings SET last_ai_evaluated_at = llm_processed_time WHERE llm_processed = 1 AND llm_processed_time IS NOT NULL");
-        }
-      });
-    }
-  });
-});
+  backfillListingTimestamps();
+}
+
+/**
+ * The two timestamp columns are added by db/schema.sql. Their *values* are not
+ * something a schema file can supply: rows that predate the columns need one
+ * derived from what the row already knows. Runs after the schema, and only ever
+ * fills nulls, so it is safe on every startup.
+ */
+function backfillListingTimestamps() {
+  db.run(
+    `UPDATE listings
+        SET last_description_changed_at =
+              COALESCE(llm_processed_time, datetime('now', 'localtime'))
+      WHERE last_description_changed_at IS NULL`,
+    err => { if (err) console.error('Backfilling last_description_changed_at:', err); }
+  );
+  db.run(
+    `UPDATE listings
+        SET last_ai_evaluated_at = llm_processed_time
+      WHERE last_ai_evaluated_at IS NULL
+        AND llm_processed = 1
+        AND llm_processed_time IS NOT NULL`,
+    err => { if (err) console.error('Backfilling last_ai_evaluated_at:', err); }
+  );
+}
 
 const query = (sql, params = []) => {
   return new Promise((resolve, reject) => {
@@ -404,7 +407,11 @@ app.get('/api/listings', async (req, res) => {
 // API: Get campaigns
 app.get('/api/campaigns', async (req, res) => {
   try {
-    const rows = await query('SELECT * FROM campaigns');
+    const rows = await query(`
+      SELECT c.*,
+             (SELECT id FROM route_searches r WHERE r.campaign_id = c.id ORDER BY r.id DESC LIMIT 1) as route_id
+      FROM campaigns c
+    `);
     res.json(rows);
   } catch (error) {
     console.error('Error fetching campaigns:', error);
@@ -428,8 +435,61 @@ app.post('/api/campaigns', async (req, res) => {
     }
     res.json({ success: true, id: campaignId });
   } catch (error) {
+    // `campaigns.name` is unique. Saying so is the difference between a user
+    // picking another name and a user retrying the same one.
+    if (error && String(error.message || '').includes('UNIQUE')) {
+      return res.status(409).json({
+        error: `A campaign called "${req.body.name}" already exists.`,
+        code: 'duplicate_name',
+      });
+    }
     console.error('Error saving campaign:', error);
     res.status(500).json({ error: 'Failed to save campaign' });
+  }
+});
+
+// API: Delete a campaign, and everything that only existed inside it.
+app.delete('/api/campaigns/:id', async (req, res) => {
+  try {
+    const campaignId = req.params.id;
+    const [campaign] = await query('SELECT name FROM campaigns WHERE id = ?', [
+      campaignId,
+    ]);
+    if (!campaign) {
+      return res.status(404).json({ error: 'Campaign not found' });
+    }
+
+    // Worth counting before it happens, so the UI can say what is being lost.
+    const [counts] = await query(
+      `SELECT (SELECT COUNT(*) FROM searches WHERE campaign_id = ?) AS searches,
+              (SELECT COUNT(*) FROM listings l JOIN searches s ON l.search_id = s.id
+                WHERE s.campaign_id = ?) AS listings`,
+      [campaignId, campaignId]
+    );
+
+    // Searches, listings and messages cascade — now that foreign keys are
+    // actually switched on. The route tables are created by the Python side and
+    // declare no references at all, and SQLite cannot add them to an existing
+    // table, so they are cleared here by hand. Doing it in the same order the
+    // references point removes the children before their parents.
+    await run(
+      `DELETE FROM listing_route_geo WHERE route_search_id IN
+         (SELECT id FROM route_searches WHERE campaign_id = ?)`,
+      [campaignId]
+    ).catch(() => {});   // the route tables may not exist yet
+    await run(
+      `DELETE FROM route_search_circles WHERE route_search_id IN
+         (SELECT id FROM route_searches WHERE campaign_id = ?)`,
+      [campaignId]
+    ).catch(() => {});
+    await run('DELETE FROM route_searches WHERE campaign_id = ?', [campaignId])
+      .catch(() => {});
+
+    await run('DELETE FROM campaigns WHERE id = ?', [campaignId]);
+    res.json({ success: true, name: campaign.name, ...counts });
+  } catch (error) {
+    console.error('Error deleting campaign:', error);
+    res.status(500).json({ error: 'Failed to delete campaign' });
   }
 });
 
@@ -483,9 +543,272 @@ app.post('/api/searches', async (req, res) => {
   }
 });
 
+// API: Place suggestions for the route corridor's From/To fields.
+app.get('/api/places/suggest', (req, res) => {
+  const matches = places.suggest(req.query.q || '', 8);
+  res.json({
+    places: matches.map(({ label, name, qualifier, state, postal_code, lat, lon }) => ({
+      label, name, qualifier, state, postal_code, lat, lon,
+    })),
+  });
+});
+
+// API: Plan a route corridor and register its circles as ordinary searches.
+//
+// A route search is not a new kind of search: the planner turns one search URL
+// into the few whose circles cover the corridor, and each of those is written
+// into `searches` like any other. So everything downstream — crawling,
+// extraction, scoring, this API — keeps working without knowing routes exist,
+// and the caller gets back plain search rows.
+app.post('/api/route-searches', (req, res) => {
+  const {
+    campaign_id,
+    base_url,
+    origin,
+    destination,
+    radius_km,
+    corridor_km,
+    knowledge_set_id,
+    name,
+  } = req.body;
+
+  if (!campaign_id || !base_url || !origin || !destination) {
+    return res.status(400).json({
+      error: 'Missing campaign_id, base_url, origin or destination',
+    });
+  }
+  if (!isValidScrapeUrl(base_url)) {
+    return res.status(400).json({
+      error: 'Invalid search target URL. Only Kleinanzeigen URLs are allowed.',
+    });
+  }
+
+  const pythonExecutable = path.join(__dirname, '..', '.venv', 'bin', 'python3');
+  const args = [
+    path.join(__dirname, '..', 'scraper', 'main.py'),
+    '--mode', 'route-create',
+    '--urls', base_url,
+    '--from', String(origin),
+    '--to', String(destination),
+    '--campaign-id', String(campaign_id),
+  ];
+  if (radius_km) args.push('--radius-km', String(radius_km));
+  if (corridor_km) args.push('--corridor-km', String(corridor_km));
+  if (knowledge_set_id) args.push('--knowledge-set-id', String(knowledge_set_id));
+  if (name) args.push('--route-name', String(name));
+
+  const python = spawn(pythonExecutable, args, { env: { ...process.env } });
+
+  let stdout = '';
+  let stderr = '';
+  let replied = false;
+  python.stdout.on('data', (data) => { stdout += data; });
+  python.stderr.on('data', (data) => { stderr += data; });
+
+  // A ChildProcess that cannot be launched at all — a missing venv, a binary
+  // without the execute bit — emits 'error', and an unhandled 'error' event
+  // ends the Node process. Planning a route would take the whole API down.
+  python.on('error', (err) => {
+    console.error('Could not start the route planner:', err);
+    if (replied) return;
+    replied = true;
+    res.status(500).json({ error: 'Could not start the route planner.' });
+  });
+
+  python.on('close', async (code) => {
+    // 'error' fires before 'close' when the binary never started, and it has
+    // already answered the request.
+    if (replied) return;
+    replied = true;
+
+    // Planning talks to two outside services — routing and location lookup —
+    // so a failure here is ordinary, not exceptional. The planner's own message
+    // says which place could not be resolved, and that is what the user needs
+    // to see rather than a generic failure.
+    if (code !== 0) {
+      const reason = (stderr.match(/ValueError: (.+)/) || [])[1];
+      console.error('Route planning failed:', stderr);
+      return res.status(400).json({
+        error: reason || 'Could not plan this route.',
+      });
+    }
+
+    const routeMatch = stdout.match(/__ROUTE_ID__:(\d+)/);
+    if (!routeMatch) {
+      console.error('Route planning produced no route id:', stdout, stderr);
+      return res.status(500).json({ error: 'Route planning produced no route.' });
+    }
+    const routeId = Number(routeMatch[1]);
+
+    try {
+      const circles = await query(
+        `SELECT s.id, s.name, s.url, c.label, c.radius_km
+           FROM route_search_circles c
+           JOIN searches s ON s.id = c.search_id
+          WHERE c.route_search_id = ?`,
+        [routeId]
+      );
+      const route = await query(
+        'SELECT name, radius_km, half_width_km FROM route_searches WHERE id = ?',
+        [routeId]
+      );
+      res.json({
+        success: true,
+        route_id: routeId,
+        name: route[0] ? route[0].name : null,
+        corridor_km: route[0] ? route[0].half_width_km : null,
+        searches: circles,
+      });
+    } catch (error) {
+      console.error('Route planned but could not be read back:', error);
+      res.status(500).json({ error: 'Route planned but could not be read back.' });
+    }
+  });
+});
+
+async function getRouteCorridorPayload(route) {
+  let plan = {};
+  try {
+    plan = JSON.parse(route.plan_json || '{}');
+  } catch (e) {
+    console.error('Failed to parse route plan_json:', e);
+  }
+
+  const circles = await query(
+    `SELECT c.route_search_id, c.search_id, c.location_id, c.label, c.radius_km,
+            s.name as search_name, s.url
+       FROM route_search_circles c
+       JOIN searches s ON s.id = c.search_id
+      WHERE c.route_search_id = ?`,
+    [route.id]
+  );
+
+  const planCircles = plan.circles || [];
+  const enrichedCircles = circles.map((circle, index) => {
+    // Only match on a location_id that actually exists. Comparing them as
+    // strings made String(null) equal String(null), so every circle the
+    // planner could not tie to a place matched the first such circle in the
+    // plan and inherited its coordinates — a row of pins stacked on one town.
+    // A null label matches nothing for the same reason.
+    const planCircle = planCircles.find(pc => {
+      if (circle.location_id != null && pc.location_id != null) {
+        return String(pc.location_id) === String(circle.location_id);
+      }
+      return circle.label != null && pc.label === circle.label;
+    }) || planCircles[index] || {};
+    return {
+      ...circle,
+      lat: planCircle.lat ?? null,
+      lon: planCircle.lon ?? null,
+      postal_code: planCircle.postal_code ?? null,
+    };
+  });
+
+  // Scoped by the route's own circles, not by the campaign. Two reasons, both
+  // of which produce a wrong list rather than an error:
+  //
+  //   A route search may have no campaign (campaign_id is nullable), and
+  //   `s.campaign_id = NULL` is never true in SQL, so the corridor would come
+  //   back empty while plainly having circles and listings.
+  //
+  //   A campaign may hold ordinary searches alongside the corridor. Those
+  //   listings have no row in listing_route_geo, so they arrive with a null
+  //   detour and get shown as corridor finds that could not be placed.
+  //
+  // The Python side already scopes it this way (scraper/route_store.py).
+  const listings = await query(
+    `SELECT l.id, l.title, l.price, l.location, l.url, l.images,
+            l.extracted_facts, l.niceness_score, l.llm_processed, l.search_id,
+            s.name as search_name,
+            g.lat, g.lon, g.offroute_km, g.detour_min, g.status as geo_status
+       FROM listings l
+       JOIN route_search_circles c
+         ON c.search_id = l.search_id AND c.route_search_id = ?
+       JOIN searches s ON l.search_id = s.id
+       LEFT JOIN listing_route_geo g ON g.listing_id = l.id AND g.route_search_id = ?
+      ORDER BY (g.detour_min IS NULL) ASC, g.detour_min ASC, l.id DESC`,
+    [route.id, route.id]
+  );
+
+  const parsedListings = listings.map(l => ({
+    ...l,
+    images: JSON.parse(l.images || '[]'),
+    extracted_facts: JSON.parse(l.extracted_facts || '{}'),
+    llm_processed: !!l.llm_processed,
+  }));
+
+  return {
+    route: {
+      id: route.id,
+      campaign_id: route.campaign_id,
+      name: route.name,
+      origin: route.origin,
+      destination: route.destination,
+      radius_km: route.radius_km,
+      half_width_km: route.half_width_km,
+      distance_km: plan.distance_km || null,
+      duration_min: plan.duration_min || null,
+      polyline: plan.polyline || [],
+      circles: enrichedCircles,
+    },
+    listings: parsedListings,
+    counts: {
+      total: parsedListings.length,
+      routed: parsedListings.filter(l => l.detour_min !== null).length,
+      unplaced: parsedListings.filter(l => l.lat === null).length,
+    }
+  };
+}
+
+// API: Get route corridor details, geometry, circles, and listings with geo info
+app.get('/api/campaigns/:id/route', async (req, res) => {
+  try {
+    const route = await get(
+      'SELECT * FROM route_searches WHERE campaign_id = ? ORDER BY id DESC LIMIT 1',
+      [req.params.id]
+    );
+    if (!route) {
+      return res.status(404).json({ error: 'No route corridor found for this campaign.' });
+    }
+    const data = await getRouteCorridorPayload(route);
+    res.json(data);
+  } catch (error) {
+    console.error('Error fetching campaign route:', error);
+    res.status(500).json({ error: 'Failed to fetch campaign route' });
+  }
+});
+
+// API: Get route corridor by route search id
+app.get('/api/route-searches/:id', async (req, res) => {
+  try {
+    const route = await get('SELECT * FROM route_searches WHERE id = ?', [req.params.id]);
+    if (!route) {
+      return res.status(404).json({ error: 'Route search not found.' });
+    }
+    const data = await getRouteCorridorPayload(route);
+    res.json(data);
+  } catch (error) {
+    console.error('Error fetching route search:', error);
+    res.status(500).json({ error: 'Failed to fetch route search' });
+  }
+});
+
 // API: Delete search item
 app.delete('/api/searches/:id', async (req, res) => {
   try {
+    // The route tables carry no foreign keys — SQLite cannot add one to a table
+    // that already exists, and these are live in every install. So the rows
+    // that reference a search are removed by hand, exactly as deleting a
+    // campaign does. Left behind, a circle row keeps pointing at a search that
+    // is gone, and the corridor read joins it away: the circle simply vanishes
+    // from the map with nothing to say why.
+    await run(
+      `DELETE FROM listing_route_geo
+        WHERE listing_id IN (SELECT id FROM listings WHERE search_id = ?)`,
+      [req.params.id]
+    ).catch(() => {});
+    await run('DELETE FROM route_search_circles WHERE search_id = ?', [req.params.id])
+      .catch(() => {});
     await run('DELETE FROM searches WHERE id = ?', [req.params.id]);
     res.json({ success: true });
   } catch (error) {

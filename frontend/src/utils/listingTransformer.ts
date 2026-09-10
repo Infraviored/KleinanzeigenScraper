@@ -95,7 +95,7 @@ export function transformListing(
             const reasoning = factValObj ? (factValObj.reasoning as string) : undefined;
             const quote = factValObj ? (factValObj.evidence_quote as string) : undefined;
 
-            let status: 'satisfied' | 'partial' | 'violated' | 'missing' | 'missing_critical' = 'missing';
+            let status: 'satisfied' | 'partial' | 'violated' | 'missing' | 'missing_critical';
 
             if (extractedVal === null || extractedVal === undefined || extractedVal === 'unknown') {
               status = f.missing_behavior === 'critical_gap' ? 'missing_critical' : 'missing';

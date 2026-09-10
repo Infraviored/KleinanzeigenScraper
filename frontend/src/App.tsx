@@ -1,9 +1,12 @@
 /* eslint-disable react-hooks/set-state-in-effect */
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import type { Campaign, KnowledgeSet, SearchTarget, Listing, SampleListing } from './types'
 import ScraperProgressCard from './components/ScraperProgressCard'
+import PlaceInput from './components/PlaceInput'
+import type { Place } from './components/PlaceInput'
 import ListingDetailCard from './components/ListingDetailCard'
 import GuidelinesWizard from './components/GuidelinesWizard'
+import RouteResultsView from './components/RouteResultsView'
 import SettingsView from './components/SettingsView'
 import { transformListing } from './utils/listingTransformer'
 import { useHashRouter } from './hooks/useHashRouter'
@@ -106,7 +109,25 @@ export default function App() {
   // Inline forms
   const [newCampaignName, setNewCampaignName] = useState('')
   const [newTargetUrl, setNewTargetUrl] = useState('')
+  // Route corridor search. `routeMode` also suppresses the debounced
+  // auto-registration below: a corridor is several searches, and registering the
+  // pasted URL as a single one the moment it looks valid would quietly give the
+  // user the point search they were trying not to make.
+  const [routeMode, setRouteMode] = useState(false)
+  const [routeFrom, setRouteFrom] = useState<Place | null>(null)
+  const [routeTo, setRouteTo] = useState<Place | null>(null)
+  const [routeRadiusKm, setRouteRadiusKm] = useState(30)
+  const [routeCorridorKm, setRouteCorridorKm] = useState(15)
+  const [routePlanning, setRoutePlanning] = useState(false)
+  const [routeError, setRouteError] = useState<string | null>(null)
+  const [routeResult, setRouteResult] = useState<{ count: number; width: number } | null>(null)
   const [isEditingCampaignName, setIsEditingCampaignName] = useState(false)
+  const [showAiWizard, setShowAiWizard] = useState(false)
+
+  // Reset AI wizard view state when switching campaigns
+  useEffect(() => {
+    setShowAiWizard(false)
+  }, [currentCampaignId])
 
   // Step wizard states for Guidelines Editor
   const [sampledListings, setSampledListings] = useState<SampleListing[]>([])
@@ -166,6 +187,8 @@ export default function App() {
       const data = await res.json()
       if (res.ok && data.success) {
         setAppUser(data.user)
+        refreshAll()
+        checkSessionStatus()
       } else {
         setLoginError(data.error || t('auth.errorInvalid'))
       }
@@ -243,21 +266,22 @@ export default function App() {
 
   // Load Prompt templates
   useEffect(() => {
+    if (!appUser) return;
     fetch('/api/prompts/research')
-      .then(r => r.text())
+      .then(r => r.ok ? r.text() : '')
       .then(setResearchPromptTemplate)
       .catch(err => console.error("Error loading research template:", err))
 
     fetch('/api/prompts/market')
-      .then(r => r.text())
+      .then(r => r.ok ? r.text() : '')
       .then(setMarketPromptTemplate)
       .catch(err => console.error("Error loading market template:", err))
 
     fetch('/api/prompts/profile')
-      .then(r => r.text())
+      .then(r => r.ok ? r.text() : '')
       .then(setProfilePromptTemplate)
       .catch(err => console.error("Error loading profile template:", err))
-  }, [])
+  }, [appUser])
 
   // Parse XML blocks in Step 3 on the fly
   useEffect(() => {
@@ -427,8 +451,123 @@ export default function App() {
     }
   }
 
+  const handleDeleteCampaign = useCallback(async (
+    campaignId: number,
+    name: string,
+    searchCount: number,
+    listingCount: number
+  ) => {
+    // Name what is about to be lost. "Are you sure?" tells nobody anything, and
+    // deleting a campaign takes its searches and everything crawled into them.
+    const contents = [
+      searchCount ? t('landing.deleteSearches', { count: searchCount }) : null,
+      listingCount ? t('landing.deleteListings', { count: listingCount }) : null,
+    ].filter(Boolean).join(', ');
+
+    const message = contents
+      ? t('landing.deleteConfirmWithContents', { name, contents })
+      : t('landing.deleteConfirm', { name });
+
+    if (!window.confirm(message)) return;
+
+    try {
+      const res = await fetch(`/api/campaigns/${campaignId}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        alert(data.error || t('landing.deleteFailed'));
+        return;
+      }
+      refreshAll();
+    } catch {
+      alert(t('common.connectionIssueFailed'));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handlePlanCorridor = useCallback(async () => {
+    if (!newTargetUrl || !isValidKleinanzeigenUrl(newTargetUrl)) {
+      setRouteError(t('common.routeNeedsUrl'));
+      return;
+    }
+    if (!routeFrom || !routeTo) {
+      setRouteError(t('common.routeNeedsBoth'));
+      return;
+    }
+
+    setRoutePlanning(true);
+    setRouteError(null);
+    setRouteResult(null);
+
+    try {
+      const suggested = suggestTitleFromUrl(newTargetUrl) || 'New Search';
+
+      // The corridor's searches share one profile, or each circle would be
+      // scored against different criteria for the same thing.
+      const ksRes = await fetch('/api/knowledge-sets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: `${suggested} Guidelines`,
+          expert_knowledge: '',
+          item_json: {}
+        })
+      });
+      const boundKsId = ksRes.ok ? (await ksRes.json()).id : null;
+
+      const res = await fetch('/api/route-searches', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          campaign_id: currentCampaignId,
+          base_url: newTargetUrl,
+          // The postal code, not the typed text: the user already resolved the
+          // ambiguity by choosing from the list, so nothing is left to guess.
+          origin: routeFrom.postal_code,
+          destination: routeTo.postal_code,
+          radius_km: routeRadiusKm,
+          corridor_km: routeCorridorKm,
+          knowledge_set_id: boundKsId,
+          name: `${suggested}: ${routeFrom.name} → ${routeTo.name}`
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        setRouteError(data.error || t('common.targetRegistrationFailed'));
+        return;
+      }
+
+      setRouteResult({
+        count: (data.searches || []).length,
+        width: (data.corridor_km || routeCorridorKm) * 2
+      });
+      setNewTargetUrl('');
+      setRouteFrom(null);
+      setRouteTo(null);
+      setIsRegisteringTarget(false);
+
+      if (data.searches && data.searches.length) {
+        setCurrentSearchId(data.searches[0].id);
+      }
+      if (data.route_id && currentCampaignId) {
+        setCampaigns(prev => prev.map(c => c.id === currentCampaignId ? { ...c, route_id: data.route_id } : c));
+      }
+      setShowAiWizard(false);
+      refreshAll();
+    } catch {
+      setRouteError(t('common.connectionIssueFailed'));
+    } finally {
+      setRoutePlanning(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [newTargetUrl, routeFrom, routeTo, routeRadiusKm, routeCorridorKm, currentCampaignId]);
+
   // Debounced auto-registration and count fetch
   useEffect(() => {
+    if (routeMode) {
+      // A corridor is registered deliberately, not the moment a URL looks valid.
+      return;
+    }
     if (!newTargetUrl || !isValidKleinanzeigenUrl(newTargetUrl)) {
       return;
     }
@@ -517,7 +656,7 @@ export default function App() {
 
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [newTargetUrl, currentCampaignId, searches, isRegisteringTarget]);
+  }, [newTargetUrl, currentCampaignId, searches, isRegisteringTarget, routeMode]);
 
 
 
@@ -629,15 +768,29 @@ export default function App() {
 
   const handleUpdateCampaignName = async (name: string) => {
     if (!currentCampaignId) return
+    const previous = campaigns.find(c => c.id === currentCampaignId)?.name
     setCampaigns(prev => prev.map(c => c.id === currentCampaignId ? { ...c, name } : c))
     try {
-      await fetch('/api/campaigns', {
+      const res = await fetch('/api/campaigns', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: currentCampaignId, name })
       })
-    } catch (err) {
-      console.error("Error updating campaign name:", err)
+      if (!res.ok) {
+        // The rename was shown before it was saved. Leaving it on screen after
+        // the save failed would tell the user the campaign is called something
+        // it is not — so put the old name back and say what happened.
+        const data = await res.json().catch(() => ({}))
+        setCampaigns(prev => prev.map(c =>
+          c.id === currentCampaignId && previous ? { ...c, name: previous } : c
+        ))
+        alert(data.error || t('landing.renameFailed'))
+      }
+    } catch {
+      setCampaigns(prev => prev.map(c =>
+        c.id === currentCampaignId && previous ? { ...c, name: previous } : c
+      ))
+      alert(t('common.connectionIssueFailed'))
     }
   }
 
@@ -844,7 +997,7 @@ export default function App() {
           <Card className="p-6 space-y-4">
             <form onSubmit={handleLoginSubmit} className="space-y-4">
               <div className="space-y-1.5">
-                <label className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">
+                <label className="text-2xs text-slate-500 font-bold uppercase tracking-wider block">
                   {t('auth.emailLabel')}
                 </label>
                 <Input
@@ -857,7 +1010,7 @@ export default function App() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">
+                <label className="text-2xs text-slate-500 font-bold uppercase tracking-wider block">
                   {t('auth.passwordLabel')}
                 </label>
                 <Input
@@ -896,6 +1049,7 @@ export default function App() {
       <header className="h-16 border-b border-border-subtle bg-bg-surface/60 backdrop-blur-md sticky top-0 z-40 px-6 flex items-center justify-between">
         <div className="flex items-center space-x-3 cursor-pointer" onClick={() => navigate('landing', null, null)}>
           <img src={`${import.meta.env.BASE_URL}logo-icon.svg`} alt="prismdeals Icon" className="w-8 h-8 rounded-lg shadow shadow-black/30" />
+          {/* eslint-disable-next-line no-restricted-syntax -- the product's name, not copy: it reads the same in every language */}
           <span className="font-semibold text-lg tracking-wide text-white font-sans">prismdeals</span>
         </div>
 
@@ -910,11 +1064,11 @@ export default function App() {
 
         {/* Desktop Controls (Inline row) */}
         <div className="hidden md:flex items-center gap-4">
-          {/* Authentication session state widget */}
+          {/* Kleinanzeigen scraper connection status */}
           <div className="flex items-center gap-3 bg-bg-input border border-border-subtle rounded-xl py-1.5 px-3 shadow-inner">
             <div className="flex items-center space-x-1.5">
               <span className={cn("w-2 h-2 rounded-full", sessionEmail ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500')} />
-              <span className="text-[10px] font-semibold text-text-muted">
+              <span className="text-2xs font-semibold text-text-muted">
                 {sessionEmail ? t('common.sessionActive', { email: sessionEmail }) : t('common.sessionUnauth')}
               </span>
             </div>
@@ -944,6 +1098,10 @@ export default function App() {
             )}
           </div>
 
+          {/* Visual separator between scraper status and app account controls */}
+          <div className="h-6 w-px bg-border-subtle" />
+
+          {/* App Account Controls */}
           <div className="flex items-center gap-3">
             {/* Language Selector Dropdown */}
             <div className="relative">
@@ -951,7 +1109,7 @@ export default function App() {
                 variant="badge"
                 size="sm"
                 onClick={() => setIsLangDropdownOpen(!isLangDropdownOpen)}
-                className="px-3 py-1.5 text-[10px] flex items-center justify-center gap-1.5 border-border-subtle"
+                className="px-3 py-1.5 text-2xs flex items-center justify-center gap-1.5 border-border-subtle"
               >
                 <Globe className="w-3.5 h-3.5 text-text-muted" />
                 <span>{lang.toUpperCase()}</span>
@@ -990,7 +1148,7 @@ export default function App() {
               variant="badge"
               size="sm"
               onClick={handleLogout}
-              className="px-3 py-1.5 text-[10px] text-rose-400 border-rose-500/20 hover:bg-rose-500/10 flex items-center justify-center gap-1.5 text-center"
+              className="px-3 py-1.5 text-2xs text-rose-400 border-rose-500/20 hover:bg-rose-500/10 flex items-center justify-center gap-1.5 text-center"
             >
               <LogOut className="w-3.5 h-3.5" />
               <span>{t('auth.logout')}</span>
@@ -1010,7 +1168,7 @@ export default function App() {
           />
           <div className="fixed top-0 right-0 bottom-0 w-72 bg-bg-surface border-l border-border-subtle p-6 z-50 flex flex-col gap-6 md:hidden animate-slide-left shadow-2xl">
             <div className="flex items-center justify-between border-b border-border-subtle pb-4">
-              <span className="font-bold text-sm text-white tracking-wide uppercase">Navigation</span>
+              <span className="font-bold text-sm text-white tracking-wide uppercase">{t('common.navigation')}</span>
               <button 
                 onClick={() => setIsMobileMenuOpen(false)}
                 className="p-1 rounded-lg border border-border-subtle text-text-muted hover:text-white"
@@ -1019,11 +1177,11 @@ export default function App() {
               </button>
             </div>
 
-            {/* Authentication session state widget */}
+            {/* Kleinanzeigen scraper connection status */}
             <div className="flex flex-col gap-3 bg-bg-input border border-border-subtle rounded-xl p-3 shadow-inner">
               <div className="flex items-center space-x-1.5">
                 <span className={cn("w-2 h-2 rounded-full", sessionEmail ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500')} />
-                <span className="text-[10px] font-semibold text-text-muted">
+                <span className="text-2xs font-semibold text-text-muted">
                   {sessionEmail ? t('common.sessionActive', { email: sessionEmail }) : t('common.sessionUnauth')}
                 </span>
               </div>
@@ -1055,7 +1213,7 @@ export default function App() {
 
             {/* Language toggle button for Mobile */}
             <div className="space-y-1">
-              <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider block font-mono">Language</span>
+              <span className="text-2xs font-bold text-text-muted uppercase tracking-wider block font-mono">{t('common.language')}</span>
               <Button
                 variant="badge"
                 size="sm"
@@ -1066,7 +1224,7 @@ export default function App() {
                   <Globe className="w-4.5 h-4.5 text-text-muted" />
                   <span>{lang === 'en' ? 'ENGLISH' : 'DEUTSCH'}</span>
                 </span>
-                <span className="text-[10px] text-brand-accent font-bold">Switch to {lang === 'en' ? 'DE' : 'EN'}</span>
+                <span className="text-2xs text-brand-accent font-bold">{t('common.switchTo', { lang: lang === 'en' ? 'DE' : 'EN' })}</span>
               </Button>
             </div>
 
@@ -1108,7 +1266,7 @@ export default function App() {
             <div className="flex justify-between items-center pb-4 border-b border-slate-800/80 w-full mb-6">
               <div>
                 <h1 className="text-xl font-bold text-slate-200">{t('landing.title')}</h1>
-                <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">{t('landing.subtitle')}</p>
+                <p className="text-2xs text-slate-500 font-semibold uppercase tracking-wider">{t('landing.subtitle')}</p>
               </div>
             </div>
 
@@ -1149,7 +1307,7 @@ export default function App() {
                     ) : (
                       <div className="w-full aspect-[21/9] rounded-xl relative border border-slate-800/80 bg-gradient-to-br from-indigo-500/10 via-slate-950 to-emerald-500/5 flex items-center justify-center overflow-hidden">
                         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-500/5 via-transparent to-transparent" />
-                        <span className="text-[9px] font-bold text-slate-600 uppercase tracking-widest font-mono">{t('landing.noListings')}</span>
+                        <span className="text-2xs font-bold text-slate-600 uppercase tracking-widest font-mono">{t('landing.noListings')}</span>
                       </div>
                     )}
 
@@ -1158,26 +1316,45 @@ export default function App() {
                         <div className="flex justify-between items-start">
                           <div>
                             <h3 className="text-sm font-extrabold text-slate-200 group-hover:text-emerald-400 transition-colors tracking-tight line-clamp-1">{c.name}</h3>
-                            <p className="text-[9px] text-slate-500 font-semibold uppercase tracking-wider mt-0.5">{t('landing.profileType')}</p>
+                            <p className="text-2xs text-slate-500 font-semibold uppercase tracking-wider mt-0.5">{t('landing.profileType')}</p>
                           </div>
 
-                          <Button
-                            variant="icon"
-                            size="xs"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              const firstTarget = searches.find(s => s.campaign_id === c.id);
-                              navigate('edit', c.id, firstTarget?.id || null);
-                            }}
-                            title={t('landing.configureTooltip')}
-                            className="p-1.5"
-                          >
-                            <Settings className="w-4 h-4 transition-transform duration-500 hover:rotate-90 text-text-muted hover:text-brand-accent" />
-                          </Button>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <Button
+                              variant="icon"
+                              size="xs"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const firstTarget = searches.find(s => s.campaign_id === c.id);
+                                navigate('edit', c.id, firstTarget?.id || null);
+                              }}
+                              title={t('landing.configureTooltip')}
+                              className="p-1.5"
+                            >
+                              <Settings className="w-5 h-5 transition-transform duration-500 hover:rotate-90 text-text-muted hover:text-brand-accent" />
+                            </Button>
+                            <Button
+                              variant="icon"
+                              size="xs"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteCampaign(c.id, c.name, campaignSearches.length, campaignListings.length);
+                              }}
+                              title={t('landing.deleteTooltip')}
+                              className="p-1.5"
+                            >
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                                   strokeLinecap="round" strokeLinejoin="round"
+                                   className="w-5 h-5 text-text-muted hover:text-rose-400 transition-colors"
+                                   aria-hidden="true">
+                                <path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                              </svg>
+                            </Button>
+                          </div>
                         </div>
 
-                        <div className="flex flex-wrap gap-1.5 text-[9px] font-semibold">
-                          <span className="bg-slate-950/60 text-slate-400 border border-slate-855 px-2 py-0.5 rounded-md">
+                        <div className="flex flex-wrap gap-1.5 text-2xs font-semibold">
+                          <span className="bg-slate-950/60 text-slate-400 border border-border-subtle px-2 py-0.5 rounded-md">
                             {campaignSearches.length} {t('landing.targets')}
                           </span>
                           <span className="bg-slate-950/60 text-emerald-400 border border-emerald-500/10 px-2 py-0.5 rounded-md font-bold">
@@ -1191,7 +1368,7 @@ export default function App() {
                         </div>
                       </div>
 
-                      <div className="border-t border-slate-855 mt-4 pt-3 flex justify-between items-center text-[11px] text-slate-400 font-bold">
+                      <div className="border-t border-border-subtle mt-4 pt-3 flex justify-between items-center text-xs text-slate-400 font-bold">
                         <span className="group-hover:text-emerald-400 transition-colors flex items-center space-x-1">
                           <span>{t('landing.openDashboard')}</span>
                           <span className="transform group-hover:translate-x-1 transition-transform">&rarr;</span>
@@ -1213,7 +1390,7 @@ export default function App() {
                 </div>
                 <div className="text-center">
                   <h3 className="text-sm font-bold text-slate-300 group-hover:text-emerald-400 transition-colors">{t('landing.createCampaign')}</h3>
-                  <p className="text-[10px] text-slate-500 mt-1 max-w-[200px]">{t('landing.createSubtitle')}</p>
+                  <p className="text-2xs text-slate-500 mt-1 max-w-[200px]">{t('landing.createSubtitle')}</p>
                 </div>
               </Card>
             </div>
@@ -1222,6 +1399,51 @@ export default function App() {
 
         {/* VIEW 2: CAMPAIGN DASHBOARD - FEED LISTINGS VIEW */}
         {view === 'dashboard' && (
+          campaigns.find(c => c.id === currentCampaignId)?.route_id ? (
+            <div className="flex flex-col space-y-6 animate-fadeIn w-full">
+              <div className="flex items-center space-x-3">
+                <Button
+                  variant="badge"
+                  size="sm"
+                  onClick={() => navigate('landing', null, null)}
+                  className="px-3 py-1.5"
+                >
+                  <span className="mr-1">←</span>
+                  <span>{t('common.backToCampaigns')}</span>
+                </Button>
+                <div className="w-[1px] h-5 bg-slate-800" />
+                <Button
+                  variant="icon"
+                  size="xs"
+                  onClick={() => {
+                    const firstTarget = searches.find(s => s.campaign_id === currentCampaignId);
+                    navigate('edit', currentCampaignId, firstTarget?.id || null);
+                  }}
+                  title={t('landing.configureTooltip')}
+                  className="p-1.5 border-border-subtle hover:border-brand-accent/30"
+                >
+                  <Settings className="w-4 h-4 transition-transform duration-500 hover:rotate-90 text-text-muted hover:text-brand-accent" />
+                </Button>
+              </div>
+
+              <RouteResultsView
+                campaignId={currentCampaignId || 0}
+                campaignName={campaigns.find(c => c.id === currentCampaignId)?.name || ''}
+                onEvaluateWithAi={() => {
+                  const firstTarget = searches.find(s => s.campaign_id === currentCampaignId);
+                  setShowAiWizard(true);
+                  navigate('edit', currentCampaignId, firstTarget?.id || null);
+                }}
+                isScraping={isScraping}
+                onStartScrape={handleStartScrape}
+                scrapingStatus={scrapingStatus}
+                scrapingProgress={scrapingProgress}
+                liveLogs={liveLogs}
+                showLogConsole={showLogConsole}
+                setShowLogConsole={setShowLogConsole}
+              />
+            </div>
+          ) : (
           <div className="flex flex-col space-y-6 animate-fadeIn w-full">
 
             {/* Campaign Breadcrumb Headers & Filters */}
@@ -1261,13 +1483,17 @@ export default function App() {
 
               <div className="flex flex-col lg:flex-row lg:items-center gap-4 w-full md:w-auto">
                 {/* Crawler and AI control actions */}
-                <div className="grid grid-cols-3 gap-2 w-full lg:w-auto">
+                {/* Wraps rather than dividing the row into exact thirds. As a
+                    three-column grid each cell was narrower than its own label,
+                    and the buttons -- which must not break their text mid-word --
+                    overflowed and printed on top of each other. */}
+                <div className="flex flex-wrap gap-2 w-full lg:w-auto">
                   <Button
                     variant="action-emerald"
                     size="sm"
                     onClick={handleStartScrape}
                     disabled={isScraping || isProcessing}
-                    className="py-2.5 px-2 text-center flex items-center justify-center gap-1.5"
+                    className="min-w-[9.5rem] py-2.5 px-3 text-center flex items-center justify-center gap-1.5"
                   >
                     <Search className="w-3.5 h-3.5" />
                     <span>{t('dashboard.fetchFresh')}</span>
@@ -1277,7 +1503,7 @@ export default function App() {
                     size="sm"
                     onClick={handleStartDeepUpdate}
                     disabled={isScraping || isProcessing}
-                    className="py-2.5 px-2 text-center flex items-center justify-center gap-1.5"
+                    className="min-w-[9.5rem] py-2.5 px-3 text-center flex items-center justify-center gap-1.5"
                   >
                     <RefreshCw className="w-3.5 h-3.5" />
                     <span>{t('dashboard.updateDesc')}</span>
@@ -1287,7 +1513,7 @@ export default function App() {
                     size="sm"
                     onClick={handleStartProcess}
                     disabled={isScraping || isProcessing}
-                    className="py-2.5 px-2 text-center flex items-center justify-center gap-1.5"
+                    className="min-w-[9.5rem] py-2.5 px-3 text-center flex items-center justify-center gap-1.5"
                   >
                     <Sparkles className="w-3.5 h-3.5" />
                     <span>{t('dashboard.autoAi')}</span>
@@ -1344,8 +1570,8 @@ export default function App() {
             {/* Grid/Split of Matched Listings */}
             {filteredListings.length === 0 ? (
               <div className="bg-slate-900/20 border border-dashed border-border-subtle rounded-2xl p-16 text-center shadow-inner">
-                <span className="text-sm text-slate-500 font-semibold block mb-1">No matching listings found</span>
-                <span className="text-xs text-slate-600 block">Configure search targets, link guidelines checklists, and trigger scraper discovery crawls to harvest deals.</span>
+                <span className="text-sm text-slate-500 font-semibold block mb-1">{t('common.noMatchingListings')}</span>
+                <span className="text-xs text-slate-600 block">{t('common.dashboardEmptyHint')}</span>
               </div>
             ) : (
               <div className="flex flex-col lg:flex-row gap-6 items-start w-full relative">
@@ -1387,7 +1613,7 @@ export default function App() {
                         />
                       ) : (
                         <div className="h-full flex flex-col items-center justify-center text-center p-8 text-text-muted">
-                          <p className="text-xs font-semibold">Listing not found</p>
+                          <p className="text-xs font-semibold">{t('common.listingNotFound')}</p>
                         </div>
                       );
                     })()
@@ -1432,23 +1658,25 @@ export default function App() {
               </div>
             )}
           </div>
+          )
         )}
             {/* VIEW 3: CAMPAIGN TARGETS & GUIDELINES EDITOR */}
         {view === 'edit' && (
           <div className="flex flex-col space-y-6 w-full animate-fadeIn max-w-6xl mx-auto py-2">
 
             {/* Sub Header */}
-            <div className="flex justify-between items-center pb-4 border-b border-slate-800 w-full">
-              <div className="flex items-center space-x-3">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center items-start gap-3 pb-4 border-b border-slate-800 w-full">
+              <div className="flex flex-col sm:flex-row sm:items-center items-start gap-3 w-full sm:w-auto">
                 <Button
                   variant="badge"
                   size="sm"
                   onClick={() => setView('dashboard')}
+                  className="shrink-0"
                 >
                   <span>← {t('common.backToDashboard')}</span>
                 </Button>
-                <div className="w-[1px] h-5 bg-slate-800" />
-                <div className="flex flex-col">
+                <div className="hidden sm:block w-[1px] h-5 bg-slate-800 shrink-0" />
+                <div className="flex flex-col min-w-0">
                   {isEditingCampaignName ? (
                     <div className="flex items-center space-x-2">
                       <Input
@@ -1474,7 +1702,7 @@ export default function App() {
                     </div>
                   ) : (
                     <div className="flex items-center space-x-2 group">
-                      <h1 className="text-base font-bold text-slate-200">
+                      <h1 className="text-base font-bold text-slate-200 truncate">
                         {campaigns.find(c => c.id === currentCampaignId)?.name} {t('common.settings')}
                       </h1>
                       <Button
@@ -1482,7 +1710,7 @@ export default function App() {
                         size="xs"
                         onClick={() => setIsEditingCampaignName(true)}
                         title={t('common.renameCampaign')}
-                        className="p-1"
+                        className="p-1 shrink-0"
                       >
                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                           <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
@@ -1491,24 +1719,30 @@ export default function App() {
                       </Button>
                     </div>
                   )}
-                  <p className="text-[9px] text-slate-500 font-semibold uppercase tracking-wider mt-0.5">{t('common.targetsAndGuidelines')}</p>
+                  <p className="text-2xs text-slate-500 font-semibold uppercase tracking-wider mt-0.5">{t('common.targetsAndGuidelines')}</p>
                 </div>
               </div>
             </div>
 
             {activeSearches.length === 0 ? (
-              <Card className="p-8 max-w-xl mx-auto w-full relative overflow-hidden animate-fadeIn">
+              // The card widens for the route corridor: two place fields, two
+              // sliders and a suggestion list do not fit in the column that
+              // suits a single URL. `overflow-hidden` would clip the
+              // suggestions, so it only applies when there is nothing to clip.
+              <Card className={`p-8 mx-auto w-full relative animate-fadeIn ${
+                routeMode ? 'max-w-3xl' : 'max-w-xl overflow-hidden'
+              }`}>
                 <div className="absolute -right-16 -top-16 w-36 h-36 rounded-full bg-emerald-500/5 blur-3xl pointer-events-none" />
                 
                 <div className="space-y-1.5 text-center">
-                  <span className="mx-auto text-[10px] bg-emerald-500/10 text-emerald-400 font-bold px-2.5 py-0.5 rounded uppercase tracking-wider w-fit block">{t('common.campaignTargetConfig')}</span>
+                  <span className="mx-auto text-2xs bg-emerald-500/10 text-emerald-400 font-bold px-2.5 py-0.5 rounded uppercase tracking-wider w-fit block">{t('common.campaignTargetConfig')}</span>
                   <h2 className="text-lg font-bold text-slate-200 font-sans tracking-tight">{t('common.pasteSearchUrl')}</h2>
                   <p className="text-xs text-slate-400 leading-relaxed font-semibold">{t('wizard.targetsDescription')}</p>
                 </div>
 
                 <div className="space-y-4 pt-2">
                   <div className="space-y-1.5">
-                    <label className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">{t('common.pasteSearchUrl')}</label>
+                    <label className="text-2xs text-slate-500 font-bold uppercase tracking-wider block">{t('common.pasteSearchUrl')}</label>
                     <Input
                       type="text"
                       value={newTargetUrl}
@@ -1518,22 +1752,150 @@ export default function App() {
                     />
                   </div>
 
+                  {/* Where to search: around the URL's own place, or along a drive. */}
+                  <div className="flex rounded-xl bg-slate-950/60 border border-border-subtle p-1 text-xs font-bold">
+                    {[
+                      { key: false, label: t('common.searchModePoint') },
+                      { key: true, label: t('common.searchModeRoute') },
+                    ].map(mode => (
+                      <button
+                        key={String(mode.key)}
+                        type="button"
+                        onClick={() => { setRouteMode(mode.key); setRouteError(null); }}
+                        aria-pressed={routeMode === mode.key}
+                        className={`flex-1 rounded-lg px-3 py-2 transition-colors ${
+                          routeMode === mode.key
+                            ? 'bg-emerald-500/15 text-emerald-300'
+                            : 'text-slate-400 hover:text-slate-200'
+                        }`}
+                      >
+                        {mode.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {routeMode && (
+                    <div className="bg-slate-950/60 border border-border-subtle rounded-2xl p-4 space-y-4 shadow-inner animate-fadeIn">
+                      <p className="text-xs text-slate-400 leading-relaxed">{t('common.routeExplainer')}</p>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <PlaceInput
+                          label={t('common.routeFrom')}
+                          placeholder={t('common.routePlaceholder')}
+                          value={routeFrom}
+                          onChange={setRouteFrom}
+                          emptyHint={t('common.routeNoMatches')}
+                        />
+                        <PlaceInput
+                          label={t('common.routeTo')}
+                          placeholder={t('common.routePlaceholder')}
+                          value={routeTo}
+                          onChange={setRouteTo}
+                          emptyHint={t('common.routeNoMatches')}
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1.5">
+                          <label htmlFor="route-corridor" className="text-2xs text-slate-500 font-bold uppercase tracking-wider block">
+                            {t('common.routeCorridor')}: <span className="text-slate-300 font-mono">{routeCorridorKm} km</span>
+                          </label>
+                          <input
+                            id="route-corridor"
+                            type="range"
+                            min={5}
+                            max={routeRadiusKm - 5}
+                            step={5}
+                            value={routeCorridorKm}
+                            onChange={e => setRouteCorridorKm(Number(e.target.value))}
+                            className="w-full accent-emerald-500"
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <label htmlFor="route-radius" className="text-2xs text-slate-500 font-bold uppercase tracking-wider block">
+                            {t('common.routeRadius')}: <span className="text-slate-300 font-mono">{routeRadiusKm} km</span>
+                          </label>
+                          <input
+                            id="route-radius"
+                            type="range"
+                            min={20}
+                            max={60}
+                            step={5}
+                            value={routeRadiusKm}
+                            onChange={e => {
+                              const next = Number(e.target.value);
+                              setRouteRadiusKm(next);
+                              // A corridor at least as wide as the circles cannot
+                              // be covered at any spacing, so it cannot be asked for.
+                              if (routeCorridorKm > next - 5) setRouteCorridorKm(next - 5);
+                            }}
+                            className="w-full accent-emerald-500"
+                          />
+                        </div>
+                      </div>
+
+                      {(() => {
+                        // What is still missing, in the order the form asks for
+                        // it. A disabled control that does not say why is a dead
+                        // end; naming the next step turns it into an instruction.
+                        const blocker =
+                          !newTargetUrl || !isValidKleinanzeigenUrl(newTargetUrl)
+                            ? t('common.routeNeedsUrl')
+                            : !routeFrom && !routeTo
+                              ? t('common.routeNeedsBoth')
+                              : !routeFrom
+                                ? t('common.routeNeedsFrom')
+                                : !routeTo
+                                  ? t('common.routeNeedsTo')
+                                  : null;
+
+                        return (
+                          <div className="space-y-2">
+                            <button
+                              type="button"
+                              onClick={handlePlanCorridor}
+                              disabled={routePlanning || blocker !== null}
+                              aria-describedby={blocker ? 'route-blocker' : undefined}
+                              className="w-full rounded-xl bg-emerald-500/15 text-emerald-300 border border-emerald-500/20 px-4 py-3 text-base font-bold hover:bg-emerald-500/25 disabled:bg-slate-900/60 disabled:text-slate-600 disabled:border-slate-800 disabled:cursor-not-allowed transition-colors"
+                            >
+                              {routePlanning ? t('common.planningCorridor') : t('common.planCorridor')}
+                            </button>
+                            {blocker && !routePlanning && (
+                              <p id="route-blocker" className="text-2xs text-slate-500 text-center">{blocker}</p>
+                            )}
+                          </div>
+                        );
+                      })()}
+
+                      {routeError && (
+                        <div className="text-xs bg-rose-500/10 text-rose-400 px-3.5 py-2.5 rounded-xl border border-rose-500/10 font-bold animate-fadeIn">
+                          {routeError}
+                        </div>
+                      )}
+                      {routeResult && (
+                        <div className="text-xs bg-emerald-500/10 text-emerald-400 px-3.5 py-2.5 rounded-xl border border-emerald-500/10 font-bold animate-fadeIn">
+                          {t('common.corridorPlanned', { count: routeResult.count, width: routeResult.width })}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {/* Reactive Indicators Panel */}
-                  {newTargetUrl && (
-                    <div className="bg-slate-950/60 border border-slate-855 rounded-2xl p-4 space-y-3 shadow-inner animate-fadeIn">
+                  {!routeMode && newTargetUrl && (
+                    <div className="bg-slate-950/60 border border-border-subtle rounded-2xl p-4 space-y-3 shadow-inner animate-fadeIn">
                       <div className="text-xs font-bold text-slate-400 border-b border-slate-900 pb-1.5 flex justify-between items-center">
                         <span>{t('common.diagnostics')}</span>
                         {previewLoading && (
                           <div className="flex items-center space-x-1">
                             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-                            <span className="text-[10px] text-emerald-400 font-mono">{t('common.processing')}</span>
+                            <span className="text-2xs text-emerald-400 font-mono">{t('common.processing')}</span>
                           </div>
                         )}
                       </div>
 
                       {/* URL Validity indicator */}
                       <div className="flex items-center space-x-2 text-xs">
-                        <span className="text-[10px] font-mono w-24 text-slate-500">{t('common.urlStatus')}</span>
+                        <span className="text-2xs font-mono text-slate-500 shrink-0">{t('common.urlStatus')}</span>
                         {isValidKleinanzeigenUrl(newTargetUrl) ? (
                           <span className="text-emerald-400 font-semibold">{t('common.validUrl')}</span>
                         ) : (
@@ -1544,7 +1906,7 @@ export default function App() {
                       {/* Suggested Title */}
                       {isValidKleinanzeigenUrl(newTargetUrl) && (
                         <div className="flex items-center space-x-2 text-xs">
-                          <span className="text-[10px] font-mono w-24 text-slate-500">{t('common.suggestedName')}</span>
+                          <span className="text-2xs font-mono text-slate-500 shrink-0">{t('common.suggestedName')}</span>
                           <span className="text-slate-200 font-bold bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
                             {suggestTitleFromUrl(newTargetUrl) || t('common.extractingTitle')}
                           </span>
@@ -1553,7 +1915,7 @@ export default function App() {
 
                       {/* Diagnostic Logs */}
                       {previewLoading && (
-                        <div className="text-[11px] text-slate-400 space-y-1 font-mono pt-1">
+                        <div className="text-xs text-slate-400 space-y-1 font-mono pt-1">
                           <div className="flex items-center space-x-1.5">
                             <span className="text-emerald-400">&gt;</span>
                             <span>{t('common.diagnosticLog1')}</span>
@@ -1588,9 +1950,42 @@ export default function App() {
                   )}
                 </div>
               </Card>
+            ) : (campaigns.find(c => c.id === currentCampaignId)?.route_id && !showAiWizard) ? (
+              /* CORRIDOR RESULTS VIEW */
+              <div className="w-full animate-fadeIn">
+                <RouteResultsView
+                  campaignId={currentCampaignId || 0}
+                  campaignName={campaigns.find(c => c.id === currentCampaignId)?.name || ''}
+                  onEvaluateWithAi={() => {
+                    setShowAiWizard(true);
+                    setWizardStep(1);
+                  }}
+                  isScraping={isScraping}
+                  onStartScrape={handleStartScrape}
+                  scrapingStatus={scrapingStatus}
+                  scrapingProgress={scrapingProgress}
+                  liveLogs={liveLogs}
+                  showLogConsole={showLogConsole}
+                  setShowLogConsole={setShowLogConsole}
+                />
+              </div>
             ) : (
               /* DIRECT 3-STEP GUIDELINES WIZARD WORKSPACE */
-              <div className="w-full animate-fadeIn">
+              <div className="w-full animate-fadeIn space-y-4">
+                {campaigns.find(c => c.id === currentCampaignId)?.route_id && (
+                  <div className="flex items-center justify-between pb-2">
+                    <Button
+                      variant="badge"
+                      size="sm"
+                      onClick={() => {
+                        setShowAiWizard(false);
+                        setWizardStep(1);
+                      }}
+                    >
+                      <span>{t('routeResults.backToResults')}</span>
+                    </Button>
+                  </div>
+                )}
                 {activeSearchTarget && (
                   <GuidelinesWizard
                     activeSearchTarget={activeSearchTarget}
@@ -1647,7 +2042,7 @@ export default function App() {
 
               <div className="space-y-4 pt-2">
                 <div className="space-y-1.5">
-                  <label className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">{t('wizard.campaignNameLabel')}</label>
+                  <label className="text-2xs text-slate-500 font-bold uppercase tracking-wider block">{t('wizard.campaignNameLabel')}</label>
                   <Input
                     type="text"
                     value={newCampaignName}

@@ -145,3 +145,105 @@ def test_nearest_postal_code_to_a_point():
 
 def test_postal_lookup_tolerates_whitespace():
     assert geo.centroids().coordinates(" 82266 ") is not None
+
+
+# --- turnarounds ---------------------------------------------------------
+
+
+def semicircle_turn(centre_lat, centre_lon, radius_deg, steps):
+    """A U-turn drawn the way a road network draws one: many gentle vertices."""
+    return [
+        (
+            centre_lat + radius_deg * math.cos(math.pi * (1 - step / steps)),
+            centre_lon + radius_deg * math.sin(math.pi * (1 - step / steps)),
+        )
+        for step in range(1, steps)
+    ]
+
+
+def straight_leg(lat, lon_from, lon_to, steps):
+    return [
+        (lat, lon_from + (lon_to - lon_from) * step / steps)
+        for step in range(steps + 1)
+    ]
+
+
+def test_a_turnaround_drawn_as_a_loop_is_found():
+    """A driver turns via a roundabout or a slip road, and each of the ten points
+    that describes one deflects by twenty or thirty degrees. Looking for a sharp
+    corner finds the U-turn drawn as a single vertex and misses every turnaround
+    a real road offers."""
+    radius = 0.0009  # about 100 m
+    route = (
+        straight_leg(48.0, 10.0, 10.268, 20)
+        + semicircle_turn(48.0 - radius, 10.268, radius, 16)
+        + straight_leg(48.0 - 2 * radius, 10.268, 10.0, 20)
+    )
+
+    sharpest = max(
+        _deflection(route[i - 1], route[i], route[i + 1])
+        for i in range(1, len(route) - 1)
+    )
+    assert sharpest < corridor.REVERSAL_DEGREES, (
+        "the fixture must be a gentle loop, not a single sharp corner"
+    )
+
+    turns = corridor.reversal_points(route)
+    assert len(turns) == 1
+    assert turns[0] == pytest.approx(20, abs=1.5)
+
+
+def _deflection(previous, here, following):
+    lat_scale, lon_scale = corridor._km_per_degree(here[0])
+    incoming = (
+        (here[1] - previous[1]) * lon_scale,
+        (here[0] - previous[0]) * lat_scale,
+    )
+    outgoing = (
+        (following[1] - here[1]) * lon_scale,
+        (following[0] - here[0]) * lat_scale,
+    )
+    first, second = math.hypot(*incoming), math.hypot(*outgoing)
+    if not first or not second:
+        return 0.0
+    cosine = (incoming[0] * outgoing[0] + incoming[1] * outgoing[1]) / (first * second)
+    return math.degrees(math.acos(max(-1.0, min(1.0, cosine))))
+
+
+def test_a_straight_route_has_no_turnarounds():
+    assert corridor.reversal_points(straight_leg(48.0, 10.0, 10.5, 60)) == []
+
+
+def test_a_winding_road_is_not_a_turnaround():
+    """A valley road also swings 120 degrees — over kilometres, while going
+    somewhere. The window is what tells the two apart."""
+    winding = [
+        (48.0 + 0.05 * math.sin(math.pi * step / 60), 10.0 + step * 0.008)
+        for step in range(61)
+    ]
+    assert corridor.reversal_points(winding) == []
+
+
+def test_a_turnaround_outside_the_range_asked_about_is_not_reported():
+    radius = 0.0009
+    route = (
+        straight_leg(48.0, 10.0, 10.268, 20)
+        + semicircle_turn(48.0 - radius, 10.268, radius, 16)
+        + straight_leg(48.0 - 2 * radius, 10.268, 10.0, 20)
+    )
+
+    assert corridor.reversal_points(route, from_km=25, to_km=40) == []
+    assert corridor.reversal_points(route, from_km=10, to_km=30)
+
+
+def test_a_coarsely_drawn_turnaround_is_still_found():
+    """A window smaller than the gap between two vertices would look at nothing.
+    Routes are not always drawn finely: the segment straight after a point counts
+    however long it is, and only what follows that is subject to the window."""
+    out = [(48.0, 10.0 + step * 0.0268) for step in range(11)]  # 2 km apart
+    there_and_back = out + list(reversed(out))[1:]
+
+    turns = corridor.reversal_points(there_and_back)
+
+    assert len(turns) == 1
+    assert turns[0] == pytest.approx(20, abs=2)

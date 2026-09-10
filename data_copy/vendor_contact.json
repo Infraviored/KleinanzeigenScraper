@@ -1,0 +1,190 @@
+{
+    "ram_more_known_screen_small_known_screen_highres_unknown": {
+        "combination": {
+            "RAM_more": false,
+            "screen_small": false,
+            "screen_highres": "unknown"
+        },
+        "missing_info": [
+            "screen_highres"
+        ],
+        "combination_key": "ram_more_known_screen_small_known_screen_highres_unknown",
+        "message": "\"Ich finde Ihren Laptop wirklich toll und bin sehr interessiert! Könnten Sie mir bitte die Bildschirmauflösung mitteilen? Das wäre für meine Entscheidung sehr hilfreich.\""
+    },
+    "ram_more_known_screen_small_unknown_screen_highres_known": {
+        "combination": {
+            "RAM_more": false,
+            "screen_small": "unknown",
+            "screen_highres": false
+        },
+        "missing_info": [
+            "screen_small"
+        ],
+        "combination_key": "ram_more_known_screen_small_unknown_screen_highres_known",
+        "message": "Ihr Laptop gefällt mir wirklich gut und ich bin sehr interessiert! Könnten Sie mir bitte die Bildschirmgröße in Zoll mitteilen? Das wäre die letzte Information, die ich benötige."
+    },
+    "ram_more_known_screen_small_unknown_screen_highres_unknown": {
+        "combination": {
+            "RAM_more": false,
+            "screen_small": "unknown",
+            "screen_highres": "unknown"
+        },
+        "missing_info": [
+            "screen_small",
+            "screen_highres"
+        ],
+        "combination_key": "ram_more_known_screen_small_unknown_screen_highres_unknown",
+        "message": "\"Ich finde Ihren Laptop wirklich toll und bin sehr interessiert! Könnten Sie mir bitte die Bildschirmgröße in Zoll und die Bildschirmauflösung mitteilen? Diese Informationen würden mir sehr helfen.\""
+    },
+    "ram_more_unknown_screen_small_known_screen_highres_known": {
+        "combination": {
+            "RAM_more": "unknown",
+            "screen_small": false,
+            "screen_highres": false
+        },
+        "missing_info": [
+            "RAM_more"
+        ],
+        "combination_key": "ram_more_unknown_screen_small_known_screen_highres_known",
+        "message": "Der Laptop sieht wirklich toll aus, und ich bin sehr interessiert! Könnten Sie mir bitte sagen, wie viel RAM verbaut ist? Diese Information wäre für meine Entscheidung sehr hilfreich."
+    },
+    "ram_more_unknown_screen_small_known_screen_highres_unknown": {
+        "combination": {
+            "RAM_more": "unknown",
+            "screen_small": false,
+            "screen_highres": "unknown"
+        },
+        "missing_info": [
+            "RAM_more",
+            "screen_highres"
+        ],
+        "combination_key": "ram_more_unknown_screen_small_known_screen_highres_unknown",
+        "message": "Ich finde Ihren Laptop wirklich toll und bin sehr interessiert! Könnten Sie mir bitte die RAM-Größe und die Bildschirmauflösung mitteilen? Das würde mir bei meiner Entscheidung sehr helfen."
+    },
+    "ram_more_unknown_screen_small_unknown_screen_highres_known": {
+        "combination": {
+            "RAM_more": "unknown",
+            "screen_small": "unknown",
+            "screen_highres": false
+        },
+        "missing_info": [
+            "RAM_more",
+            "screen_small"
+        ],
+        "combination_key": "ram_more_unknown_screen_small_unknown_screen_highres_known",
+        "message": "Ich finde Ihren Laptop wirklich klasse und bin sehr interessiert! Könnten Sie mir bitte die RAM-Größe und die Bildschirmgröße in Zoll nennen? Das würde mir bei meiner Entscheidung sehr helfen."
+    },
+    "ram_more_unknown_screen_small_unknown_screen_highres_unknown": {
+        "combination": {
+            "RAM_more": "unknown",
+            "screen_small": "unknown",
+            "screen_highres": "unknown"
+        },
+        "missing_info": [
+            "RAM_more",
+            "screen_small",
+            "screen_highres"
+        ],
+        "combination_key": "ram_more_unknown_screen_small_unknown_screen_highres_unknown",
+        "message": "Ich finde Ihren Laptop wirklich toll und bin sehr interessiert! Könnten Sie mir bitte die RAM-Größe, die Bildschirmgröße in Zoll und die Bildschirmauflösung mitteilen? Diese Details wären mir sehr hilfreich."
+    },
+    "custom_template": "You are helping to generate friendly and conversational messages to send to vendors on Kleinanzeigen (a German classified ads platform) to ask about missing information in their laptop listings.\n\nI will provide you with information about what technical specifications are missing from a laptop listing and possibly an additional question. Your task is to generate a friendly message in German that asks about the missing information.\n\nHere's what information is missing from this listing:\n{missing_info_list}\n\nAdditional question (if any):\n{additional_question}\n\nPlease create a message that:\n1. Is friendly and conversational\n2. Expresses genuine interest in the laptop\n3. Mentions that you couldn't find the specific information in the listing\n4. Asks about the missing information in a polite way\n5. Includes the additional question if provided\n6. Is written in German\n7. Is 3-4 sentences long\n8. Does not include a greeting or signature (we will add those separately)\n\nThe message should sound natural and conversational, as if written by someone who really likes the laptop but needs these specific details before making a decision.\n\nExample for missing RAM and screen resolution:\n\"Ich bin sehr an Ihrem Laptop interessiert und finde ihn wirklich toll! Leider konnte ich in der Anzeige keine Angaben zur RAM-Größe und zur Bildschirmauflösung finden. Könnten Sie mir bitte diese Informationen mitteilen? Das würde mir sehr bei meiner Kaufentscheidung helfen.\"\n\nExample for only missing screen size with additional question about payment:\n\"Ihr Laptop gefällt mir sehr gut und ich bin ernsthaft interessiert! Leider konnte ich in der Anzeige keine Angabe zur Bildschirmgröße finden. Könnten Sie mir bitte mitteilen, wie groß der Bildschirm in Zoll ist? Außerdem würde ich gerne wissen, ob eine Zahlung mit PayPal und Käuferschutz für Sie möglich wäre.\" ",
+    "messages": {
+        "ram_more_known_screen_small_known_screen_highres_unknown": {
+            "combination": {
+                "RAM_more": "false",
+                "screen_small": "false",
+                "screen_highres": "unknown"
+            },
+            "missing_info": [
+                "screen_highres"
+            ],
+            "combination_key": "ram_more_known_screen_small_known_screen_highres_unknown",
+            "message": "Ihr Laptop sieht wirklich interessant aus und ich würde gerne mehr darüber erfahren! Leider habe ich in der Anzeige keine Informationen zur Bildschirmauflösung gefunden. Könnten Sie mir bitte sagen, wie hoch die Auflösung ist? Außerdem würde ich gerne wissen, ob eine Bezahlung mit Paypal oder über den Käuferschutz von Kleinanzeigen möglich wäre.",
+            "additional_question": "Wäre eine Bezahlung mit Paypal oder Kleinanzeigen (Käuferschutz) möglich?"
+        },
+        "ram_more_known_screen_small_unknown_screen_highres_known": {
+            "combination": {
+                "RAM_more": "false",
+                "screen_small": "unknown",
+                "screen_highres": "false"
+            },
+            "missing_info": [
+                "screen_small"
+            ],
+            "combination_key": "ram_more_known_screen_small_unknown_screen_highres_known",
+            "message": "Ich finde Ihren Laptop wirklich spannend und interessiere mich sehr dafür! Leider habe ich in Ihrer Anzeige keine Information zur Bildschirmgröße gefunden. Könnten Sie mir bitte sagen, wie groß der Bildschirm in Zoll ist? Außerdem würde mich interessieren, ob eine Bezahlung mit PayPal oder Kleinanzeigen (Käuferschutz) möglich wäre.",
+            "additional_question": "Wäre eine Bezahlung mit Paypal oder Kleinanzeigen (Käuferschutz) möglich?"
+        },
+        "ram_more_known_screen_small_unknown_screen_highres_unknown": {
+            "combination": {
+                "RAM_more": "false",
+                "screen_small": "unknown",
+                "screen_highres": "unknown"
+            },
+            "missing_info": [
+                "screen_small",
+                "screen_highres"
+            ],
+            "combination_key": "ram_more_known_screen_small_unknown_screen_highres_unknown",
+            "message": "Ihr Laptop hat mein Interesse geweckt und ich finde ihn wirklich spannend! Leider konnte ich in der Anzeige keine Informationen zur Bildschirmgröße und zur Bildschirmauflösung finden. Könnten Sie mir diese Details bitte mitteilen? Das würde mir sehr bei meiner Entscheidung helfen. Außerdem wäre es toll zu wissen, ob eine Zahlung mit PayPal oder Kleinanzeigen (Käuferschutz) möglich ist.",
+            "additional_question": "Wäre eine Bezahlung mit Paypal oder Kleinanzeigen (Käuferschutz) möglich?"
+        },
+        "ram_more_unknown_screen_small_known_screen_highres_known": {
+            "combination": {
+                "RAM_more": "unknown",
+                "screen_small": "false",
+                "screen_highres": "false"
+            },
+            "missing_info": [
+                "RAM_more"
+            ],
+            "combination_key": "ram_more_unknown_screen_small_known_screen_highres_known",
+            "message": "Ich finde Ihren Laptop wirklich spannend und bin sehr interessiert! Leider konnte ich in der Anzeige keine Informationen zur RAM-Größe finden. Könnten Sie mir bitte sagen, wie viel Arbeitsspeicher der Laptop hat? Wäre außerdem eine Bezahlung mit PayPal oder über Kleinanzeigen mit Käuferschutz möglich?",
+            "additional_question": "Wäre eine Bezahlung mit Paypal oder Kleinanzeigen (Käuferschutz) möglich?"
+        },
+        "ram_more_unknown_screen_small_known_screen_highres_unknown": {
+            "combination": {
+                "RAM_more": "unknown",
+                "screen_small": "false",
+                "screen_highres": "unknown"
+            },
+            "missing_info": [
+                "RAM_more",
+                "screen_highres"
+            ],
+            "combination_key": "ram_more_unknown_screen_small_known_screen_highres_unknown",
+            "message": "Ich finde Ihren Laptop wirklich spannend und bin sehr interessiert daran! Leider habe ich in der Anzeige keine Informationen zur RAM-Größe und zur Bildschirmauflösung gefunden. Könnten Sie mir diese Details bitte mitteilen? Wäre zudem eine Bezahlung mit PayPal oder Kleinanzeigen (Käuferschutz) möglich?",
+            "additional_question": "Wäre eine Bezahlung mit Paypal oder Kleinanzeigen (Käuferschutz) möglich?"
+        },
+        "ram_more_unknown_screen_small_unknown_screen_highres_known": {
+            "combination": {
+                "RAM_more": "unknown",
+                "screen_small": "unknown",
+                "screen_highres": "false"
+            },
+            "missing_info": [
+                "RAM_more",
+                "screen_small"
+            ],
+            "combination_key": "ram_more_unknown_screen_small_unknown_screen_highres_known",
+            "message": "Ihr Laptop sieht wirklich interessant aus und weckt mein Interesse! Ich konnte jedoch keine Informationen zur RAM-Größe und zur Bildschirmgröße in Zoll in der Anzeige finden. Wären Sie so freundlich, mir diese Details mitzuteilen? Außerdem hätte ich gerne gewusst, ob eine Bezahlung mit PayPal oder Kleinanzeigen (Käuferschutz) möglich wäre.",
+            "additional_question": "Wäre eine Bezahlung mit Paypal oder Kleinanzeigen (Käuferschutz) möglich?"
+        },
+        "ram_more_unknown_screen_small_unknown_screen_highres_unknown": {
+            "combination": {
+                "RAM_more": "unknown",
+                "screen_small": "unknown",
+                "screen_highres": "unknown"
+            },
+            "missing_info": [
+                "RAM_more",
+                "screen_small",
+                "screen_highres"
+            ],
+            "combination_key": "ram_more_unknown_screen_small_unknown_screen_highres_unknown",
+            "message": "Ich finde Ihren Laptop wirklich klasse und bin sehr interessiert! Leider habe ich in der Anzeige keine Informationen zur RAM-Größe, Bildschirmgröße und Bildschirmauflösung gefunden. Könnten Sie mir bitte diese Details mitteilen? Das wäre ganz hilfreich für meine Entscheidung. Wäre außerdem eine Bezahlung mit PayPal oder Kleinanzeigen (Käuferschutz) möglich?",
+            "additional_question": "Wäre eine Bezahlung mit Paypal oder Kleinanzeigen (Käuferschutz) möglich?"
+        }
+    }
+}

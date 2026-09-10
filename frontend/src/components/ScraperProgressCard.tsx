@@ -1,3 +1,4 @@
+import { useTranslation } from '../hooks/useTranslation';
 import type { ScraperProgressCardProps } from '../types';
 
 export default function ScraperProgressCard({
@@ -5,6 +6,8 @@ export default function ScraperProgressCard({
   scrapingStatus,
   scrapingProgress,
 }: ScraperProgressCardProps) {
+  const { t } = useTranslation();
+
   if (!isScraping) return null;
 
   const current = scrapingProgress?.current ?? 0;
@@ -34,8 +37,8 @@ export default function ScraperProgressCard({
         <div className="space-y-1">
           <div className="flex items-center space-x-2">
             <div className="animate-spin w-4 h-4 border-2 border-emerald-400 border-t-transparent rounded-full" />
-            <h3 className="text-sm font-bold text-slate-200">Active Scraping Session</h3>
-            <span className={`text-[9px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${phaseColor}`}>
+            <h3 className="text-sm font-bold text-slate-200">{t('common.activeScrapingSession')}</h3>
+            <span className={`text-2xs px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${phaseColor}`}>
               {phaseLabel}
             </span>
           </div>
@@ -45,12 +48,12 @@ export default function ScraperProgressCard({
         </div>
         <div className="text-right shrink-0">
           <span className="text-lg font-black text-emerald-400 font-mono tracking-tight">{pct}%</span>
-          <span className="text-[10px] text-slate-550 block font-semibold">{current} / {total} Completed</span>
+          <span className="text-2xs text-text-muted block font-semibold">{t('common.completedOf', { current, total })}</span>
         </div>
       </div>
 
       {/* Progress Bar Container */}
-      <div className="w-full bg-slate-950/80 h-3 rounded-full overflow-hidden p-0.5 border border-slate-850 shadow-inner">
+      <div className="w-full bg-slate-950/80 h-3 rounded-full overflow-hidden p-0.5 border border-border-subtle shadow-inner">
         <div 
           className={`h-full rounded-full bg-gradient-to-r ${barColor} transition-all duration-500 relative`}
           style={{ width: `${pct}%` }}
@@ -61,25 +64,25 @@ export default function ScraperProgressCard({
       </div>
 
       {/* Time Remaining & Meta Details */}
-      <div className="flex items-center justify-between text-[11px] text-slate-500 font-medium px-1 pt-0.5">
+      <div className="flex items-center justify-between text-xs text-slate-500 font-medium px-1 pt-0.5">
         <div>
           {phase === 'harvesting' && remaining > 0 ? (
             <span className="flex items-center space-x-1">
               <svg className="w-3.5 h-3.5 text-emerald-500/85" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
               </svg>
-              <span>Estimated time remaining: <strong className="text-slate-300 font-semibold">{secondsLeft}s</strong></span>
+              <span>{t('common.estimatedRemaining')}<strong className="text-slate-300 font-semibold">{secondsLeft}s</strong></span>
             </span>
           ) : phase === 'harvesting' ? (
-            <span className="text-emerald-400 font-bold">Finalizing session...</span>
+            <span className="text-emerald-400 font-bold">{t('common.finalizingSession')}</span>
           ) : phase === 'discovery' ? (
-            <span className="text-sky-400">Discovering listings on index pages...</span>
+            <span className="text-sky-400">{t('common.discoveringListings')}</span>
           ) : (
-            <span className="text-slate-400">Connecting to scraper worker...</span>
+            <span className="text-slate-400">{t('common.connectingWorker')}</span>
           )}
         </div>
-        <div className="text-[9px] text-slate-600 font-bold uppercase tracking-wider select-none">
-          Live Scraper
+        <div className="text-2xs text-slate-600 font-bold uppercase tracking-wider select-none">
+          {t('common.liveScraper')}
         </div>
       </div>
     </div>

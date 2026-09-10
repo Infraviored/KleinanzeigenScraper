@@ -31,9 +31,9 @@ export const Button: React.FC<ButtonProps> = ({
   };
 
   const sizes = {
-    xs: 'h-7 px-3 text-[10px] rounded-lg gap-1',
-    sm: 'h-9 px-4 text-xs rounded-xl gap-1.5',
-    md: 'h-10 px-5 text-sm rounded-xl gap-1.5',
+    xs: 'h-7 px-3 text-2xs rounded-lg gap-1',
+    sm: 'h-9 px-4 text-xs rounded-xl gap-1.5 whitespace-nowrap',
+    md: 'h-10 px-5 text-sm rounded-xl gap-1.5 whitespace-nowrap',
     lg: 'h-12 px-6 text-sm rounded-xl gap-2',
   };
 

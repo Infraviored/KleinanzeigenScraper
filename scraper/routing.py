@@ -236,13 +236,61 @@ def detour_minutes(client, route, point, bracket_km=15.0):
 
     from_km = max(0.0, at_km - bracket_km)
     to_km = min(total_km, at_km + bracket_km)
+    at_km = min(max(at_km, from_km), to_km)
 
     before = corridor.point_at_km(polyline, from_km)
     after = corridor.point_at_km(polyline, to_km)
 
+    # Both halves have to describe the same journey, or the subtraction is
+    # meaningless. `direct` follows the polyline, so `via` must too: handed only
+    # (before, point, after), the router is free to take whatever way it likes
+    # between them, and near a turnaround it cuts straight across — making `via`
+    # *shorter* than `direct` and the difference negative, which `max(0.0, ...)`
+    # then hides as a zero-minute detour. A listing genuinely costing four
+    # minutes near a turnaround read as free.
+    #
+    # Feeding the route's own points back in as waypoints forces the same path.
+    waypoints = (
+        [before]
+        + _route_waypoints(polyline, from_km, at_km)
+        + [point]
+        + _route_waypoints(polyline, at_km, to_km)
+        + [after]
+    )
+
     direct = route.duration_between_km(from_km, to_km)
-    via = client.duration_s([before, point, after])
+    via = client.duration_s(waypoints)
     return max(0.0, (via - direct) / 60.0)
+
+
+# Regularly spaced waypoints keep the router roughly on the route. Far enough
+# apart to keep the request small; the places where the gap between two of them
+# would actually matter are added separately below.
+WAYPOINT_SPACING_KM = 8.0
+
+
+def _route_waypoints(polyline, from_km, to_km, spacing_km=WAYPOINT_SPACING_KM):
+    """Points along the route between two arc lengths, endpoints excluded.
+
+    Evenly spaced points are not enough on their own: everything between two
+    consecutive waypoints is the router's choice, so a turnaround falling in one
+    of those gaps is cut straight across. Measured on a there-and-back route with
+    the turn at km 20, an 8 km grid placed waypoints at km 11 and km 26 and the
+    turn between them vanished — leaving a genuine five-kilometre diversion
+    priced at fourteen seconds. Reversals are therefore added explicitly.
+    """
+    import corridor
+
+    distances = []
+    distance = from_km + spacing_km
+    while distance < to_km - 0.01:
+        distances.append(distance)
+        distance += spacing_km
+
+    distances.extend(corridor.reversal_points(polyline, from_km, to_km))
+    distances.sort()
+
+    return [corridor.point_at_km(polyline, km) for km in distances]
 
 
 def annotate_detours(client, route, listings, max_offroute_km=None, bracket_km=15.0):
@@ -273,8 +321,13 @@ def annotate_detours(client, route, listings, max_offroute_km=None, bracket_km=1
         try:
             minutes = detour_minutes(client, route, coords, bracket_km=bracket_km)
         except (RoutingError, KeyError, ValueError) as exc:
+            # A failed attempt is not an answer. Saying so lets the caller try
+            # again rather than filing a routing outage as a settled result.
             logger.info("No detour for listing %s: %s", listing.get("id"), exc)
-            minutes = None
+            annotated.append(
+                dict(listing, detour_min=None, offroute_km=offroute, failed=True)
+            )
+            continue
 
         annotated.append(dict(listing, detour_min=minutes, offroute_km=offroute))
     return annotated

@@ -1,0 +1,12 @@
+[
+  {
+    "url": "https://www.kleinanzeigen.de/s-notebooks/preis::1500/rtx4060/k0c278",
+    "name": "RTX 4060",
+    "enabled": true
+  },
+  {
+    "url": "https://www.kleinanzeigen.de/s-notebooks/preis::1500/rtx4070/k0c278",
+    "name": "RTX 4070",
+    "enabled": true
+  }
+]

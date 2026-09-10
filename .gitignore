@@ -51,3 +51,4 @@ Thumbs.db
 # Local databases and chrome profiles
 data/
 extension/test_data/
+.wt/

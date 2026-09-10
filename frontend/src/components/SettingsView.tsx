@@ -103,7 +103,7 @@ export default function SettingsView({ onBack }: SettingsViewProps) {
           <span className="mr-1">←</span>
           <span>{t('common.backToCampaigns')}</span>
         </Button>
-        <span className="text-slate-750 font-semibold select-none">|</span>
+        <span className="text-text-muted font-semibold select-none">|</span>
         <h2 className="text-base font-bold text-slate-200 tracking-tight">{t('settings.title')}</h2>
       </div>
 
@@ -118,7 +118,7 @@ export default function SettingsView({ onBack }: SettingsViewProps) {
           <div className="absolute -left-20 -bottom-20 w-44 h-44 rounded-full bg-sky-500/5 blur-3xl pointer-events-none" />
 
           <div className="space-y-1">
-            <span className="text-[10px] bg-emerald-500/10 text-emerald-400 font-bold px-2.5 py-0.5 rounded uppercase tracking-wider w-fit block mb-1">
+            <span className="text-2xs bg-emerald-500/10 text-emerald-400 font-bold px-2.5 py-0.5 rounded uppercase tracking-wider w-fit block mb-1">
               {t('settings.schedulerConfig')}
             </span>
             <h3 className="text-lg font-bold text-slate-200 font-sans tracking-tight">{t('settings.scraperRules')}</h3>
@@ -148,7 +148,7 @@ export default function SettingsView({ onBack }: SettingsViewProps) {
           <div className="space-y-5 pt-2">
             {/* Scraping Frequency */}
             <div className="space-y-1.5">
-              <label htmlFor="scraper-interval-input" className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">
+              <label htmlFor="scraper-interval-input" className="text-2xs text-slate-400 font-bold uppercase tracking-wider block">
                 {t('settings.crawlFrequency')}
               </label>
               <div className="relative">
@@ -162,11 +162,11 @@ export default function SettingsView({ onBack }: SettingsViewProps) {
                   onChange={(e) => setIntervalVal(Math.max(1, parseInt(e.target.value, 10) || 1))}
                   className="font-mono pr-12"
                 />
-                <div className="absolute right-4 top-3 text-[10px] text-slate-500 font-bold uppercase tracking-widest pointer-events-none select-none">
+                <div className="absolute right-4 top-3 text-2xs text-slate-500 font-bold uppercase tracking-widest pointer-events-none select-none">
                   min
                 </div>
               </div>
-              <span className="text-[10px] text-slate-550 block leading-normal">
+              <span className="text-2xs text-text-muted block leading-normal">
                 {t('settings.frequencyDesc')}
               </span>
             </div>
@@ -176,7 +176,7 @@ export default function SettingsView({ onBack }: SettingsViewProps) {
 
             {/* Delay Between Search Pages */}
             <div className="space-y-1.5">
-              <label htmlFor="scraper-delay-pages-input" className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">
+              <label htmlFor="scraper-delay-pages-input" className="text-2xs text-slate-400 font-bold uppercase tracking-wider block">
                 {t('settings.delayBetweenPages')}
               </label>
               <div className="relative">
@@ -190,11 +190,11 @@ export default function SettingsView({ onBack }: SettingsViewProps) {
                   onChange={(e) => setDelayBetweenPages(Math.max(0, parseFloat(e.target.value) || 0))}
                   className="font-mono pr-12"
                 />
-                <div className="absolute right-4 top-3 text-[10px] text-slate-500 font-bold uppercase tracking-widest pointer-events-none select-none">
+                <div className="absolute right-4 top-3 text-2xs text-slate-500 font-bold uppercase tracking-widest pointer-events-none select-none">
                   sec
                 </div>
               </div>
-              <span className="text-[10px] text-slate-550 block leading-normal">
+              <span className="text-2xs text-text-muted block leading-normal">
                 {t('settings.delayPagesDesc')}
               </span>
             </div>
@@ -204,7 +204,7 @@ export default function SettingsView({ onBack }: SettingsViewProps) {
 
             {/* Delay Between Listings Details */}
             <div className="space-y-1.5">
-              <label htmlFor="scraper-delay-listings-input" className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">
+              <label htmlFor="scraper-delay-listings-input" className="text-2xs text-slate-400 font-bold uppercase tracking-wider block">
                 {t('settings.delayBetweenListings')}
               </label>
               <div className="relative">
@@ -218,11 +218,11 @@ export default function SettingsView({ onBack }: SettingsViewProps) {
                   onChange={(e) => setDelayBetweenListings(Math.max(0, parseFloat(e.target.value) || 0))}
                   className="font-mono pr-12"
                 />
-                <div className="absolute right-4 top-3 text-[10px] text-slate-500 font-bold uppercase tracking-widest pointer-events-none select-none">
+                <div className="absolute right-4 top-3 text-2xs text-slate-500 font-bold uppercase tracking-widest pointer-events-none select-none">
                   sec
                 </div>
               </div>
-              <span className="text-[10px] text-slate-550 block leading-normal">
+              <span className="text-2xs text-text-muted block leading-normal">
                 {t('settings.delayListingsDesc')}
               </span>
             </div>
@@ -236,7 +236,7 @@ export default function SettingsView({ onBack }: SettingsViewProps) {
                 <label htmlFor="scraper-auto-ai-toggle" className="text-xs font-bold text-slate-200 block cursor-pointer">
                   {t('settings.autoAiLabel')}
                 </label>
-                <span className="text-[10px] text-slate-500 block leading-normal max-w-md">
+                <span className="text-2xs text-slate-500 block leading-normal max-w-md">
                   {t('settings.autoAiDesc')}
                 </span>
               </div>
@@ -246,12 +246,12 @@ export default function SettingsView({ onBack }: SettingsViewProps) {
                 role="switch"
                 aria-checked={autoAiEval}
                 onClick={() => setAutoAiEval(!autoAiEval)}
-                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-250 ease-in-out focus:outline-none focus:ring-2 focus:ring-emerald-500/50 ${
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-emerald-500/50 ${
                   autoAiEval ? 'bg-emerald-500' : 'bg-slate-800'
                 }`}
               >
                 <span
-                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-slate-100 shadow-md ring-0 transition duration-250 ease-in-out ${
+                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-slate-100 shadow-md ring-0 transition duration-200 ease-in-out ${
                     autoAiEval ? 'translate-x-5' : 'translate-x-0'
                   }`}
                 />
@@ -267,7 +267,7 @@ export default function SettingsView({ onBack }: SettingsViewProps) {
                 <label htmlFor="scraper-startup-fetch-toggle" className="text-xs font-bold text-slate-200 block cursor-pointer">
                   {t('settings.fullCrawlLabel')}
                 </label>
-                <span className="text-[10px] text-slate-550 block leading-normal max-w-md">
+                <span className="text-2xs text-text-muted block leading-normal max-w-md">
                   {t('settings.fullCrawlDesc')}
                 </span>
               </div>
@@ -277,12 +277,12 @@ export default function SettingsView({ onBack }: SettingsViewProps) {
                 role="switch"
                 aria-checked={fullFetchOnStartup}
                 onClick={() => setFullFetchOnStartup(!fullFetchOnStartup)}
-                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-250 ease-in-out focus:outline-none focus:ring-2 focus:ring-emerald-500/50 ${
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-emerald-500/50 ${
                   fullFetchOnStartup ? 'bg-emerald-500' : 'bg-slate-800'
                 }`}
               >
                 <span
-                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-slate-100 shadow-md ring-0 transition duration-250 ease-in-out ${
+                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-slate-100 shadow-md ring-0 transition duration-200 ease-in-out ${
                     fullFetchOnStartup ? 'translate-x-5' : 'translate-x-0'
                   }`}
                 />

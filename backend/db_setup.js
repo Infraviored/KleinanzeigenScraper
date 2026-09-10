@@ -1,97 +1,86 @@
-const sqlite3 = require('sqlite3').verbose();
+#!/usr/bin/env node
+/**
+ * Brings a database up to db/schema.sql.
+ *
+ * This script used to begin by deleting the database:
+ *
+ *     // Delete existing database file to ensure a clean schema transition
+ *     if (fs.existsSync(dbPath)) fs.unlinkSync(dbPath);
+ *
+ * and it hardcoded data/scraper.db while the server honoured PRISMDEALS_DB. So
+ * `PRISMDEALS_DB=/tmp/test.db node backend/db_setup.js`, which reads as
+ * obviously safe, destroyed production instead. On 2026-09-10 it did, and the
+ * data came back only because a running process still held the deleted file
+ * open. That is luck, not recovery.
+ *
+ * Now: it honours PRISMDEALS_DB, it only ever adds, and destroying a database
+ * takes an explicit flag, a confirmation, and a backup taken first.
+ *
+ *   node backend/db_setup.js                     # bring up to date, keep data
+ *   PRISMDEALS_DB=/tmp/x.db node backend/db_setup.js
+ *   node backend/db_setup.js --recreate --yes    # start empty, backup first
+ */
+
 const fs = require('fs');
 const path = require('path');
+const sqlite3 = require('sqlite3').verbose();
+const { applySchema } = require('./db/schema');
+const { backup } = require('./db/backup');
 
-const dbDir = path.join(__dirname, '..', 'data');
-if (!fs.existsSync(dbDir)) {
-  fs.mkdirSync(dbDir, { recursive: true });
+const DEFAULT_DB = path.join(__dirname, '..', 'data', 'scraper.db');
+
+function parseArgs(argv) {
+  return {
+    recreate: argv.includes('--recreate'),
+    confirmed: argv.includes('--yes'),
+  };
 }
 
-const dbPath = path.join(dbDir, 'scraper.db');
+async function main(argv) {
+  const { recreate, confirmed } = parseArgs(argv);
+  const dbPath = process.env.PRISMDEALS_DB || DEFAULT_DB;
 
-// Delete existing database file to ensure a clean schema transition
-if (fs.existsSync(dbPath)) {
-  console.log('Removing old database for schema transition...');
-  fs.unlinkSync(dbPath);
+  fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+
+  if (recreate) {
+    if (!confirmed) {
+      console.error(
+        `Refusing to delete ${dbPath}.\n\n` +
+          `--recreate destroys every row in the database. If that is genuinely\n` +
+          `what you want, say so explicitly:\n\n` +
+          `    node backend/db_setup.js --recreate --yes\n\n` +
+          `To add missing tables while keeping the data, run it with no flags.`
+      );
+      process.exitCode = 1;
+      return;
+    }
+    if (fs.existsSync(dbPath)) {
+      const saved = backup(dbPath, 'before-recreate');
+      console.log(`Backed up to ${saved}`);
+      for (const suffix of ['', '-wal', '-shm']) {
+        fs.rmSync(`${dbPath}${suffix}`, { force: true });
+      }
+      console.log(`Deleted ${dbPath}`);
+    }
+  }
+
+  const existed = fs.existsSync(dbPath);
+  const db = new sqlite3.Database(dbPath);
+  try {
+    await applySchema(db);
+  } finally {
+    await new Promise(resolve => db.close(resolve));
+  }
+  console.log(
+    `${existed ? 'Updated' : 'Created'} ${dbPath} from db/schema.sql`
+  );
 }
 
-const db = new sqlite3.Database(dbPath);
+if (require.main === module) {
+  main(process.argv.slice(2)).catch(err => {
+    console.error(err.message);
+    process.exit(1);
+  });
+}
 
-db.serialize(() => {
-  // 1. Create Campaigns Table
-  db.run(`
-    CREATE TABLE IF NOT EXISTS campaigns (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT UNIQUE
-    )
-  `);
-
-  // 2. Create Knowledge Sets Table
-  db.run(`
-    CREATE TABLE IF NOT EXISTS knowledge_sets (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT UNIQUE NOT NULL,
-      expert_knowledge TEXT,
-      item_json TEXT,
-      market_memo TEXT,
-      good_reference_description TEXT,
-      bad_reference_description TEXT,
-      market_samples_json TEXT,
-      source_search_url TEXT,
-      sample_timestamp TEXT
-    )
-  `);
-
-  // 3. Create Searches (Items) Table
-  db.run(`
-    CREATE TABLE IF NOT EXISTS searches (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      campaign_id INTEGER REFERENCES campaigns(id) ON DELETE CASCADE,
-      name TEXT,
-      url TEXT UNIQUE,
-      enabled INTEGER DEFAULT 1,
-      knowledge_set_id INTEGER REFERENCES knowledge_sets(id) ON DELETE SET NULL
-    )
-  `);
-
-  // 3. Create Listings Table
-  db.run(`
-    CREATE TABLE IF NOT EXISTS listings (
-      id TEXT PRIMARY KEY,
-      title TEXT,
-      price TEXT,
-      location TEXT,
-      url TEXT,
-      short_description TEXT,
-      detailed_description TEXT,
-      llm_processed INTEGER DEFAULT 0,
-      llm_processed_time TEXT,
-      full_info_obtained INTEGER DEFAULT 0,
-      extracted_facts TEXT,
-      niceness_score INTEGER,
-      status TEXT DEFAULT 'New',
-      search_id INTEGER REFERENCES searches(id) ON DELETE CASCADE,
-      details TEXT,
-      images TEXT,
-      last_description_changed_at TEXT,
-      last_ai_evaluated_at TEXT
-    )
-  `);
-
-  // 4. Create Messages Table
-  db.run(`
-    CREATE TABLE IF NOT EXISTS messages (
-      id TEXT PRIMARY KEY,
-      listing_id TEXT REFERENCES listings(id) ON DELETE CASCADE,
-      sender_name TEXT,
-      sender_initials TEXT,
-      is_outbound INTEGER,
-      message_text TEXT,
-      message_date TEXT
-    )
-  `);
-
-  console.log('Database schema successfully initialized under the Campaign-Item hierarchy.');
-});
-
-db.close();
+module.exports = { main };
