@@ -163,26 +163,65 @@ def walk(driver, base, out_dir, width, height):
 
     for campaign in campaigns:
         identifier = campaign.get("id")
+        has_route = bool(campaign.get("route_id"))
+
         driver.get(f"{base}/#edit?campaignId={identifier}")
         time.sleep(2)
         shoot(driver, out_dir, f"03-campaign-{identifier}")
 
-        opened = False
+        if has_route:
+            # Also capture the corridor dashboard view
+            driver.get(f"{base}/#dashboard?campaignId={identifier}")
+            time.sleep(2)
+            shoot(driver, out_dir, f"04-corridor-dashboard-{identifier}")
+
+            # Click "Evaluate these with AI ->" to show that the wizard is a deliberate choice
+            eval_btn = None
+            try:
+                eval_btn = driver.find_element(By.ID, "btn-evaluate-ai")
+            except Exception:
+                for btn in driver.find_elements(By.CSS_SELECTOR, "button"):
+                    txt = (btn.text or "").lower()
+                    if (
+                        ("evaluate" in txt or " ai" in txt or "ki" in txt)
+                        and "campaign" not in txt
+                        and btn.is_displayed()
+                    ):
+                        eval_btn = btn
+                        break
+            if eval_btn and eval_btn.is_displayed():
+                eval_btn.click()
+                time.sleep(1.5)
+                shoot(driver, out_dir, f"05-corridor-ai-wizard-{identifier}")
+
+            # Return to results view
+            for btn in driver.find_elements(By.CSS_SELECTOR, "button"):
+                txt = (btn.text or "").lower()
+                if ("results" in txt or "ergebnisse" in txt) and btn.is_displayed():
+                    btn.click()
+                    time.sleep(1.5)
+                    shoot(driver, out_dir, f"06-corridor-back-to-results-{identifier}")
+                    break
+
+            # Capture mobile portrait view (~400px wide)
+            driver.set_window_size(420, 840)
+            time.sleep(1)
+            shoot(driver, out_dir, f"07-corridor-mobile-{identifier}")
+            driver.set_window_size(width, height)
+            time.sleep(0.5)
+
+        # Check if route planner panel can be opened (for campaigns without targets)
         for button in driver.find_elements(By.CSS_SELECTOR, "button"):
             if "route" in (button.text or "").lower() and button.is_displayed():
                 button.click()
-                opened = True
+                shoot(driver, out_dir, f"08-route-panel-{identifier}")
+                boxes = driver.find_elements(By.CSS_SELECTOR, "input[role='combobox']")
+                if boxes:
+                    boxes[0].send_keys("Landsberg")
+                    shoot(
+                        driver, out_dir, f"09-route-dropdown-{identifier}", settle=1.6
+                    )
                 break
-        if not opened:
-            continue
-
-        shoot(driver, out_dir, f"04-route-panel-{identifier}")
-
-        boxes = driver.find_elements(By.CSS_SELECTOR, "input[role='combobox']")
-        if boxes:
-            boxes[0].send_keys("Landsberg")
-            shoot(driver, out_dir, f"05-route-dropdown-{identifier}", settle=1.6)
-        return
 
 
 def main():
@@ -198,8 +237,23 @@ def main():
     port = free_port()
     server = None
 
+    src_db = os.path.join(ROOT, "data", "scraper.db")
+    wal_file = os.path.join(ROOT, "data", "scraper.db-wal")
+    if os.path.exists(wal_file):
+        try:
+            subprocess.run(
+                ["sqlite3", src_db, "PRAGMA wal_checkpoint(TRUNCATE);"],
+                check=False,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        except Exception:
+            pass
+
     try:
-        shutil.copy(os.path.join(ROOT, "data", "scraper.db"), db_path)
+        shutil.copy(src_db, db_path)
+        if os.path.exists(wal_file) and os.path.getsize(wal_file) > 0:
+            shutil.copy(wal_file, f"{db_path}-wal")
         make_test_user(db_path)
 
         server = subprocess.Popen(
@@ -230,8 +284,10 @@ def main():
                 server.wait(timeout=5)
             except subprocess.TimeoutExpired:
                 server.kill()
-        if os.path.exists(db_path):
-            os.remove(db_path)
+        for ext in ("", "-wal", "-shm"):
+            p = f"{db_path}{ext}"
+            if os.path.exists(p):
+                os.remove(p)
 
 
 if __name__ == "__main__":

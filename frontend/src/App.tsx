@@ -6,6 +6,7 @@ import PlaceInput from './components/PlaceInput'
 import type { Place } from './components/PlaceInput'
 import ListingDetailCard from './components/ListingDetailCard'
 import GuidelinesWizard from './components/GuidelinesWizard'
+import RouteResultsView from './components/RouteResultsView'
 import SettingsView from './components/SettingsView'
 import { transformListing } from './utils/listingTransformer'
 import { useHashRouter } from './hooks/useHashRouter'
@@ -121,6 +122,12 @@ export default function App() {
   const [routeError, setRouteError] = useState<string | null>(null)
   const [routeResult, setRouteResult] = useState<{ count: number; width: number } | null>(null)
   const [isEditingCampaignName, setIsEditingCampaignName] = useState(false)
+  const [showAiWizard, setShowAiWizard] = useState(false)
+
+  // Reset AI wizard view state when switching campaigns
+  useEffect(() => {
+    setShowAiWizard(false)
+  }, [currentCampaignId])
 
   // Step wizard states for Guidelines Editor
   const [sampledListings, setSampledListings] = useState<SampleListing[]>([])
@@ -180,6 +187,8 @@ export default function App() {
       const data = await res.json()
       if (res.ok && data.success) {
         setAppUser(data.user)
+        refreshAll()
+        checkSessionStatus()
       } else {
         setLoginError(data.error || t('auth.errorInvalid'))
       }
@@ -540,6 +549,10 @@ export default function App() {
       if (data.searches && data.searches.length) {
         setCurrentSearchId(data.searches[0].id);
       }
+      if (data.route_id && currentCampaignId) {
+        setCampaigns(prev => prev.map(c => c.id === currentCampaignId ? { ...c, route_id: data.route_id } : c));
+      }
+      setShowAiWizard(false);
       refreshAll();
     } catch {
       setRouteError(t('common.connectionIssueFailed'));
@@ -1381,6 +1394,51 @@ export default function App() {
 
         {/* VIEW 2: CAMPAIGN DASHBOARD - FEED LISTINGS VIEW */}
         {view === 'dashboard' && (
+          campaigns.find(c => c.id === currentCampaignId)?.route_id ? (
+            <div className="flex flex-col space-y-6 animate-fadeIn w-full">
+              <div className="flex items-center space-x-3">
+                <Button
+                  variant="badge"
+                  size="sm"
+                  onClick={() => navigate('landing', null, null)}
+                  className="px-3 py-1.5"
+                >
+                  <span className="mr-1">←</span>
+                  <span>{t('common.backToCampaigns')}</span>
+                </Button>
+                <div className="w-[1px] h-5 bg-slate-800" />
+                <Button
+                  variant="icon"
+                  size="xs"
+                  onClick={() => {
+                    const firstTarget = searches.find(s => s.campaign_id === currentCampaignId);
+                    navigate('edit', currentCampaignId, firstTarget?.id || null);
+                  }}
+                  title={t('landing.configureTooltip')}
+                  className="p-1.5 border-border-subtle hover:border-brand-accent/30"
+                >
+                  <Settings className="w-4 h-4 transition-transform duration-500 hover:rotate-90 text-text-muted hover:text-brand-accent" />
+                </Button>
+              </div>
+
+              <RouteResultsView
+                campaignId={currentCampaignId || 0}
+                campaignName={campaigns.find(c => c.id === currentCampaignId)?.name || ''}
+                onEvaluateWithAi={() => {
+                  const firstTarget = searches.find(s => s.campaign_id === currentCampaignId);
+                  setShowAiWizard(true);
+                  navigate('edit', currentCampaignId, firstTarget?.id || null);
+                }}
+                isScraping={isScraping}
+                onStartScrape={handleStartScrape}
+                scrapingStatus={scrapingStatus}
+                scrapingProgress={scrapingProgress}
+                liveLogs={liveLogs}
+                showLogConsole={showLogConsole}
+                setShowLogConsole={setShowLogConsole}
+              />
+            </div>
+          ) : (
           <div className="flex flex-col space-y-6 animate-fadeIn w-full">
 
             {/* Campaign Breadcrumb Headers & Filters */}
@@ -1591,6 +1649,7 @@ export default function App() {
               </div>
             )}
           </div>
+          )
         )}
             {/* VIEW 3: CAMPAIGN TARGETS & GUIDELINES EDITOR */}
         {view === 'edit' && (
@@ -1881,9 +1940,42 @@ export default function App() {
                   )}
                 </div>
               </Card>
+            ) : (campaigns.find(c => c.id === currentCampaignId)?.route_id && !showAiWizard) ? (
+              /* CORRIDOR RESULTS VIEW */
+              <div className="w-full animate-fadeIn">
+                <RouteResultsView
+                  campaignId={currentCampaignId || 0}
+                  campaignName={campaigns.find(c => c.id === currentCampaignId)?.name || ''}
+                  onEvaluateWithAi={() => {
+                    setShowAiWizard(true);
+                    setWizardStep(1);
+                  }}
+                  isScraping={isScraping}
+                  onStartScrape={handleStartScrape}
+                  scrapingStatus={scrapingStatus}
+                  scrapingProgress={scrapingProgress}
+                  liveLogs={liveLogs}
+                  showLogConsole={showLogConsole}
+                  setShowLogConsole={setShowLogConsole}
+                />
+              </div>
             ) : (
               /* DIRECT 3-STEP GUIDELINES WIZARD WORKSPACE */
-              <div className="w-full animate-fadeIn">
+              <div className="w-full animate-fadeIn space-y-4">
+                {campaigns.find(c => c.id === currentCampaignId)?.route_id && (
+                  <div className="flex items-center justify-between pb-2">
+                    <Button
+                      variant="badge"
+                      size="sm"
+                      onClick={() => {
+                        setShowAiWizard(false);
+                        setWizardStep(1);
+                      }}
+                    >
+                      <span>{t('routeResults.backToResults')}</span>
+                    </Button>
+                  </div>
+                )}
                 {activeSearchTarget && (
                   <GuidelinesWizard
                     activeSearchTarget={activeSearchTarget}

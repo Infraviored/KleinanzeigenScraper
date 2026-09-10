@@ -1,6 +1,7 @@
 export interface Campaign {
   id: number
   name: string
+  route_id?: number | null
 }
 
 export interface KnowledgeSet {

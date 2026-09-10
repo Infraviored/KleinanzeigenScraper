@@ -414,7 +414,11 @@ app.get('/api/listings', async (req, res) => {
 // API: Get campaigns
 app.get('/api/campaigns', async (req, res) => {
   try {
-    const rows = await query('SELECT * FROM campaigns');
+    const rows = await query(`
+      SELECT c.*,
+             (SELECT id FROM route_searches r WHERE r.campaign_id = c.id ORDER BY r.id DESC LIMIT 1) as route_id
+      FROM campaigns c
+    `);
     res.json(rows);
   } catch (error) {
     console.error('Error fetching campaigns:', error);
@@ -684,7 +688,7 @@ async function getRouteCorridorPayload(route) {
   });
 
   const listings = await query(
-    `SELECT l.id, l.title, l.price, l.location, l.url, l.images, l.created_at,
+    `SELECT l.id, l.title, l.price, l.location, l.url, l.images,
             l.extracted_facts, l.niceness_score, l.llm_processed, l.search_id,
             s.name as search_name,
             g.lat, g.lon, g.offroute_km, g.detour_min, g.status as geo_status
@@ -692,7 +696,7 @@ async function getRouteCorridorPayload(route) {
        JOIN searches s ON l.search_id = s.id
        LEFT JOIN listing_route_geo g ON g.listing_id = l.id AND g.route_search_id = ?
       WHERE s.campaign_id = ?
-      ORDER BY (g.detour_min IS NULL) ASC, g.detour_min ASC, l.created_at DESC`,
+      ORDER BY (g.detour_min IS NULL) ASC, g.detour_min ASC, l.id DESC`,
     [route.id, route.campaign_id]
   );
 
