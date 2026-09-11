@@ -93,7 +93,7 @@ export default function SettingsView({ onBack }: SettingsViewProps) {
   return (
     <div className="space-y-6 max-w-2xl mx-auto w-full animate-fadeIn py-4">
       {/* Header Bar */}
-      <div className="flex items-center space-x-3 pb-4 border-b border-slate-800">
+      <div className="flex items-center space-x-3 pb-4 border-b border-border-subtle">
         <Button
           type="button"
           variant="badge"
@@ -104,31 +104,25 @@ export default function SettingsView({ onBack }: SettingsViewProps) {
           <span>{t('common.backToCampaigns')}</span>
         </Button>
         <span className="text-text-muted font-semibold select-none">|</span>
-        <h2 className="text-base font-bold text-slate-200 tracking-tight">{t('settings.title')}</h2>
+        <h2 className="text-2xl font-bold text-text-primary tracking-tight">{t('settings.title')}</h2>
       </div>
 
       {loading ? (
-        <div className="bg-slate-900/40 backdrop-blur-xl border border-slate-800/80 rounded-2xl p-12 text-center shadow-lg">
-          <div className="animate-spin w-8 h-8 border-3 border-emerald-400 border-t-transparent rounded-full mx-auto mb-4" />
-          <p className="text-xs text-slate-400 font-medium">{t('common.loading')}</p>
+        <div className="bg-bg-surface/40 backdrop-blur-xl border border-border-subtle rounded-2xl p-12 text-center shadow-lg">
+          <div className="animate-spin w-8 h-8 border-3 border-brand-accent border-t-transparent rounded-full mx-auto mb-4" />
+          <p className="text-sm text-text-secondary font-medium">{t('common.loading')}</p>
         </div>
       ) : (
-        <form onSubmit={handleSave} className="bg-slate-900/50 backdrop-blur-xl border border-slate-800/85 rounded-3xl p-8 shadow-2xl space-y-6 relative overflow-hidden">
-          <div className="absolute -right-20 -top-20 w-44 h-44 rounded-full bg-emerald-500/5 blur-3xl pointer-events-none" />
-          <div className="absolute -left-20 -bottom-20 w-44 h-44 rounded-full bg-sky-500/5 blur-3xl pointer-events-none" />
-
+        <form onSubmit={handleSave} className="bg-bg-surface/50 backdrop-blur-xl border border-border-subtle rounded-3xl p-8 shadow-2xl space-y-6 relative overflow-hidden">
           <div className="space-y-1">
-            <span className="text-2xs bg-emerald-500/10 text-emerald-400 font-bold px-2.5 py-0.5 rounded uppercase tracking-wider w-fit block mb-1">
-              {t('settings.schedulerConfig')}
-            </span>
-            <h3 className="text-lg font-bold text-slate-200 font-sans tracking-tight">{t('settings.scraperRules')}</h3>
-            <p className="text-xs text-slate-400 leading-relaxed font-semibold">
+            <h3 className="text-xl font-bold text-text-primary font-sans tracking-tight">{t('settings.scraperRules')}</h3>
+            <p className="text-base text-text-secondary leading-relaxed font-normal">
               {t('settings.rulesDesc')}
             </p>
           </div>
 
           {error && (
-            <div className="p-3.5 bg-rose-500/10 border border-rose-500/20 rounded-xl text-xs text-rose-400 font-semibold flex items-center space-x-2 animate-fadeIn">
+            <div className="p-3.5 bg-status-danger/10 border border-status-danger/20 rounded-xl text-sm text-status-danger font-semibold flex items-center space-x-2 animate-fadeIn">
               <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
               </svg>
@@ -137,7 +131,7 @@ export default function SettingsView({ onBack }: SettingsViewProps) {
           )}
 
           {success && (
-            <div className="p-3.5 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-xs text-emerald-400 font-semibold flex items-center space-x-2 animate-fadeIn">
+            <div className="p-3.5 bg-status-good/10 border border-status-good/20 rounded-xl text-sm text-status-good font-semibold flex items-center space-x-2 animate-fadeIn">
               <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
@@ -148,7 +142,7 @@ export default function SettingsView({ onBack }: SettingsViewProps) {
           <div className="space-y-5 pt-2">
             {/* Scraping Frequency */}
             <div className="space-y-1.5">
-              <label htmlFor="scraper-interval-input" className="text-2xs text-slate-400 font-bold uppercase tracking-wider block">
+              <label htmlFor="scraper-interval-input" className="text-sm text-text-secondary font-medium block">
                 {t('settings.crawlFrequency')}
               </label>
               <div className="relative">
@@ -162,21 +156,21 @@ export default function SettingsView({ onBack }: SettingsViewProps) {
                   onChange={(e) => setIntervalVal(Math.max(1, parseInt(e.target.value, 10) || 1))}
                   className="font-mono pr-12"
                 />
-                <div className="absolute right-4 top-3 text-2xs text-slate-500 font-bold uppercase tracking-widest pointer-events-none select-none">
+                <div className="absolute right-4 top-3 text-sm text-text-muted font-medium pointer-events-none select-none">
                   min
                 </div>
               </div>
-              <span className="text-2xs text-text-muted block leading-normal">
+              <span className="text-sm text-text-muted block leading-normal">
                 {t('settings.frequencyDesc')}
               </span>
             </div>
 
             {/* Separator */}
-            <div className="h-px bg-slate-800/80" />
+            <div className="h-px bg-border-subtle" />
 
             {/* Delay Between Search Pages */}
             <div className="space-y-1.5">
-              <label htmlFor="scraper-delay-pages-input" className="text-2xs text-slate-400 font-bold uppercase tracking-wider block">
+              <label htmlFor="scraper-delay-pages-input" className="text-sm text-text-secondary font-medium block">
                 {t('settings.delayBetweenPages')}
               </label>
               <div className="relative">
@@ -190,21 +184,21 @@ export default function SettingsView({ onBack }: SettingsViewProps) {
                   onChange={(e) => setDelayBetweenPages(Math.max(0, parseFloat(e.target.value) || 0))}
                   className="font-mono pr-12"
                 />
-                <div className="absolute right-4 top-3 text-2xs text-slate-500 font-bold uppercase tracking-widest pointer-events-none select-none">
+                <div className="absolute right-4 top-3 text-sm text-text-muted font-medium pointer-events-none select-none">
                   sec
                 </div>
               </div>
-              <span className="text-2xs text-text-muted block leading-normal">
+              <span className="text-sm text-text-muted block leading-normal">
                 {t('settings.delayPagesDesc')}
               </span>
             </div>
 
             {/* Separator */}
-            <div className="h-px bg-slate-800/80" />
+            <div className="h-px bg-border-subtle" />
 
             {/* Delay Between Listings Details */}
             <div className="space-y-1.5">
-              <label htmlFor="scraper-delay-listings-input" className="text-2xs text-slate-400 font-bold uppercase tracking-wider block">
+              <label htmlFor="scraper-delay-listings-input" className="text-sm text-text-secondary font-medium block">
                 {t('settings.delayBetweenListings')}
               </label>
               <div className="relative">
@@ -218,25 +212,25 @@ export default function SettingsView({ onBack }: SettingsViewProps) {
                   onChange={(e) => setDelayBetweenListings(Math.max(0, parseFloat(e.target.value) || 0))}
                   className="font-mono pr-12"
                 />
-                <div className="absolute right-4 top-3 text-2xs text-slate-500 font-bold uppercase tracking-widest pointer-events-none select-none">
+                <div className="absolute right-4 top-3 text-sm text-text-muted font-medium pointer-events-none select-none">
                   sec
                 </div>
               </div>
-              <span className="text-2xs text-text-muted block leading-normal">
+              <span className="text-sm text-text-muted block leading-normal">
                 {t('settings.delayListingsDesc')}
               </span>
             </div>
 
             {/* Separator */}
-            <div className="h-px bg-slate-800/80" />
+            <div className="h-px bg-border-subtle" />
 
             {/* Toggle: Auto AI Matcher */}
             <div className="flex items-start justify-between space-x-4 py-1">
               <div className="space-y-0.5">
-                <label htmlFor="scraper-auto-ai-toggle" className="text-xs font-bold text-slate-200 block cursor-pointer">
+                <label htmlFor="scraper-auto-ai-toggle" className="text-base font-semibold text-text-primary block cursor-pointer">
                   {t('settings.autoAiLabel')}
                 </label>
-                <span className="text-2xs text-slate-500 block leading-normal max-w-md">
+                <span className="text-sm text-text-muted block leading-normal max-w-md">
                   {t('settings.autoAiDesc')}
                 </span>
               </div>
@@ -246,12 +240,12 @@ export default function SettingsView({ onBack }: SettingsViewProps) {
                 role="switch"
                 aria-checked={autoAiEval}
                 onClick={() => setAutoAiEval(!autoAiEval)}
-                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-emerald-500/50 ${
-                  autoAiEval ? 'bg-emerald-500' : 'bg-slate-800'
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-brand-accent/50 ${
+                  autoAiEval ? 'bg-brand-accent' : 'bg-bg-input'
                 }`}
               >
                 <span
-                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-slate-100 shadow-md ring-0 transition duration-200 ease-in-out ${
+                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
                     autoAiEval ? 'translate-x-5' : 'translate-x-0'
                   }`}
                 />
@@ -259,15 +253,15 @@ export default function SettingsView({ onBack }: SettingsViewProps) {
             </div>
 
             {/* Separator */}
-            <div className="h-px bg-slate-800/80" />
+            <div className="h-px bg-border-subtle" />
 
             {/* Toggle: Full Fetch on Startup */}
             <div className="flex items-start justify-between space-x-4 py-1">
               <div className="space-y-0.5">
-                <label htmlFor="scraper-startup-fetch-toggle" className="text-xs font-bold text-slate-200 block cursor-pointer">
+                <label htmlFor="scraper-startup-fetch-toggle" className="text-base font-semibold text-text-primary block cursor-pointer">
                   {t('settings.fullCrawlLabel')}
                 </label>
-                <span className="text-2xs text-text-muted block leading-normal max-w-md">
+                <span className="text-sm text-text-muted block leading-normal max-w-md">
                   {t('settings.fullCrawlDesc')}
                 </span>
               </div>
@@ -277,12 +271,12 @@ export default function SettingsView({ onBack }: SettingsViewProps) {
                 role="switch"
                 aria-checked={fullFetchOnStartup}
                 onClick={() => setFullFetchOnStartup(!fullFetchOnStartup)}
-                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-emerald-500/50 ${
-                  fullFetchOnStartup ? 'bg-emerald-500' : 'bg-slate-800'
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-brand-accent/50 ${
+                  fullFetchOnStartup ? 'bg-brand-accent' : 'bg-bg-input'
                 }`}
               >
                 <span
-                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-slate-100 shadow-md ring-0 transition duration-200 ease-in-out ${
+                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
                     fullFetchOnStartup ? 'translate-x-5' : 'translate-x-0'
                   }`}
                 />
@@ -295,7 +289,7 @@ export default function SettingsView({ onBack }: SettingsViewProps) {
               type="submit"
               variant="primary"
               loading={saving}
-              className="flex-1 uppercase tracking-wider text-xs py-3"
+              className="flex-1 text-sm py-3"
             >
               {t('settings.scraperRules')}
             </Button>
@@ -303,7 +297,7 @@ export default function SettingsView({ onBack }: SettingsViewProps) {
               type="button"
               variant="secondary"
               onClick={onBack}
-              className="px-5 py-3 uppercase tracking-wider text-xs"
+              className="px-5 py-3 text-sm"
             >
               {t('common.cancel')}
             </Button>

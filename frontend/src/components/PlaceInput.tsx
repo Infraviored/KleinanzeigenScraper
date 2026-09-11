@@ -150,7 +150,7 @@ export default function PlaceInput({ label, placeholder, value, onChange, emptyH
 
   return (
     <div className="space-y-1.5 relative" ref={containerRef}>
-      <label htmlFor={`${listId}-input`} className="text-2xs text-slate-500 font-bold uppercase tracking-wider block">
+      <label htmlFor={`${listId}-input`} className="text-sm text-text-secondary font-semibold block">
         {label}
       </label>
       <Input
@@ -174,9 +174,9 @@ export default function PlaceInput({ label, placeholder, value, onChange, emptyH
       />
 
       {value ? (
-        <p className="text-2xs text-emerald-400 font-semibold">{value.label}</p>
+        <p className="text-sm text-status-good font-semibold">{value.label}</p>
       ) : text.trim().length >= 2 && !searching && matches.length === 0 ? (
-        <p className="text-2xs text-slate-500">{emptyHint}</p>
+        <p className="text-sm text-text-muted">{emptyHint}</p>
       ) : null}
 
       {open && matches.length > 0 && (
@@ -188,7 +188,7 @@ export default function PlaceInput({ label, placeholder, value, onChange, emptyH
           id={listId}
           ref={listRef}
           role="listbox"
-          className="absolute z-30 left-0 top-full mt-1 min-w-full w-max max-w-[min(28rem,80vw)] max-h-72 overflow-y-auto rounded-xl border border-border-subtle bg-slate-950 shadow-2xl py-1"
+          className="absolute z-30 left-0 top-full mt-1 min-w-full w-max max-w-[min(28rem,80vw)] max-h-72 overflow-y-auto rounded-xl border border-border-subtle bg-bg-surface shadow-2xl py-1"
         >
           {matches.map((place, index) => (
             <li
@@ -198,14 +198,14 @@ export default function PlaceInput({ label, placeholder, value, onChange, emptyH
               aria-selected={index === active}
               onMouseEnter={() => setActive(index)}
               onMouseDown={e => { e.preventDefault(); choose(place) }}
-              className={`px-3 py-2 cursor-pointer ${
-                index === active ? 'bg-emerald-500/15' : ''
+              className={`px-3 py-2.5 min-h-[44px] flex flex-col justify-center cursor-pointer transition-colors ${
+                index === active ? 'bg-bg-surface-hover' : ''
               }`}
             >
-              <div className="text-sm text-slate-100 font-semibold leading-snug">
+              <div className="text-base text-text-primary font-semibold leading-snug">
                 {place.qualifier ? `${place.name} ${place.qualifier}` : place.name}
               </div>
-              <div className="text-2xs text-slate-500 flex items-center gap-2 leading-snug">
+              <div className="text-sm text-text-muted flex items-center gap-2 leading-snug">
                 <span className="font-mono tabular-nums">{place.postal_code}</span>
                 <span aria-hidden="true">·</span>
                 <span>{place.state}</span>

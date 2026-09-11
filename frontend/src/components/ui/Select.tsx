@@ -61,9 +61,9 @@ export const Select: React.FC<SelectProps> = ({
         type="button"
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
-          'w-full flex items-center justify-between bg-bg-input border text-xs rounded-xl px-4 h-10 text-left text-text-secondary font-semibold cursor-pointer focus:outline-none transition-all shadow-inner focus:ring-2 focus:ring-brand-accent/10',
+          'w-full flex items-center justify-between bg-bg-input border text-sm rounded-xl px-4 min-h-[44px] text-left text-text-secondary font-semibold cursor-pointer focus:outline-none transition-all shadow-inner focus:ring-2 focus:ring-brand-accent/10',
           error
-            ? 'border-rose-500/50 focus:border-rose-500 focus:ring-rose-500/10'
+            ? 'border-status-danger/50 focus:border-status-danger focus:ring-status-danger/10'
             : 'border-border-subtle focus:border-brand-accent',
           isOpen && 'border-brand-accent ring-2 ring-brand-accent/10'
         )}
@@ -83,7 +83,7 @@ export const Select: React.FC<SelectProps> = ({
                 type="button"
                 onClick={() => handleSelect(option.value)}
                 className={cn(
-                  'w-full text-left px-4 py-2.5 text-xs text-text-secondary hover:bg-bg-surface-hover hover:text-white font-semibold transition-colors',
+                  'w-full text-left px-4 py-3 min-h-[44px] flex items-center text-sm text-text-secondary hover:bg-bg-surface-hover hover:text-text-primary font-semibold transition-colors',
                   option.value === value && 'bg-brand-accent/10 text-brand-accent hover:bg-brand-accent/20'
                 )}
               >
@@ -91,7 +91,7 @@ export const Select: React.FC<SelectProps> = ({
               </button>
             ))}
             {options.length === 0 && (
-              <div className="px-4 py-2.5 text-xs text-text-muted italic">
+              <div className="px-4 py-3 text-sm text-text-muted italic">
                 {t('common.noOptions')}
               </div>
             )}

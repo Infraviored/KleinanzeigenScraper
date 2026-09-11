@@ -18,42 +18,42 @@ export default function ScraperProgressCard({
   const secondsLeft = Math.max(0, remaining * 3);
 
   let phaseLabel = "Initializing";
-  let phaseColor = "bg-amber-500/10 text-amber-400 border border-amber-500/25";
-  let barColor = "from-amber-500 to-amber-400 animate-pulse";
+  let phaseColor = "bg-bg-surface text-text-muted border border-border-subtle";
+  let barColor = "from-brand-accent/60 to-brand-accent animate-pulse";
   
   if (phase === 'discovery') {
     phaseLabel = "Discovery Phase (Index Page Crawl)";
-    phaseColor = "bg-sky-500/10 text-sky-400 border border-sky-500/25";
-    barColor = "from-sky-500 to-sky-400";
+    phaseColor = "bg-brand-accent/10 text-brand-accent border border-brand-accent/25";
+    barColor = "from-brand-accent/80 to-brand-accent";
   } else if (phase === 'harvesting') {
     phaseLabel = "Enrichment Phase (Sequential Page Harvest)";
-    phaseColor = "bg-emerald-500/10 text-emerald-400 border border-emerald-500/25";
-    barColor = "from-emerald-500 to-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.3)]";
+    phaseColor = "bg-status-good/10 text-status-good border border-status-good/25";
+    barColor = "from-status-good to-status-good/80 shadow-[0_0_8px_rgba(16,185,129,0.3)]";
   }
 
   return (
-    <div className="bg-slate-900/90 backdrop-blur-2xl border border-slate-800/80 rounded-2xl p-6 shadow-2xl space-y-4 animate-fadeIn my-4">
+    <div className="bg-bg-surface/90 backdrop-blur-2xl border border-border-subtle rounded-2xl p-6 shadow-2xl space-y-4 animate-fadeIn my-4">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
         <div className="space-y-1">
           <div className="flex items-center space-x-2">
-            <div className="animate-spin w-4 h-4 border-2 border-emerald-400 border-t-transparent rounded-full" />
-            <h3 className="text-sm font-bold text-slate-200">{t('common.activeScrapingSession')}</h3>
-            <span className={`text-2xs px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${phaseColor}`}>
+            <div className="animate-spin w-4 h-4 border-2 border-status-good border-t-transparent rounded-full" />
+            <h3 className="text-base font-bold text-text-primary">{t('common.activeScrapingSession')}</h3>
+            <span className={`text-sm px-2.5 py-0.5 rounded-full font-medium ${phaseColor}`}>
               {phaseLabel}
             </span>
           </div>
-          <p className="text-xs text-slate-400 leading-relaxed font-medium">
+          <p className="text-sm text-text-secondary leading-relaxed font-medium">
             {scrapingStatus || "Connecting to background scraper worker..."}
           </p>
         </div>
         <div className="text-right shrink-0">
-          <span className="text-lg font-black text-emerald-400 font-mono tracking-tight">{pct}%</span>
-          <span className="text-2xs text-text-muted block font-semibold">{t('common.completedOf', { current, total })}</span>
+          <span className="text-2xl sm:text-3xl font-bold text-status-good font-mono tracking-tight">{pct}%</span>
+          <span className="text-sm text-text-muted block font-medium">{t('common.completedOf', { current, total })}</span>
         </div>
       </div>
 
       {/* Progress Bar Container */}
-      <div className="w-full bg-slate-950/80 h-3 rounded-full overflow-hidden p-0.5 border border-border-subtle shadow-inner">
+      <div className="w-full bg-bg-base/80 h-3 rounded-full overflow-hidden p-0.5 border border-border-subtle shadow-inner">
         <div 
           className={`h-full rounded-full bg-gradient-to-r ${barColor} transition-all duration-500 relative`}
           style={{ width: `${pct}%` }}
@@ -64,24 +64,24 @@ export default function ScraperProgressCard({
       </div>
 
       {/* Time Remaining & Meta Details */}
-      <div className="flex items-center justify-between text-xs text-slate-500 font-medium px-1 pt-0.5">
+      <div className="flex items-center justify-between text-sm text-text-muted font-medium px-1 pt-0.5">
         <div>
           {phase === 'harvesting' && remaining > 0 ? (
             <span className="flex items-center space-x-1">
-              <svg className="w-3.5 h-3.5 text-emerald-500/85" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5">
+              <svg className="w-3.5 h-3.5 text-status-good" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
               </svg>
-              <span>{t('common.estimatedRemaining')}<strong className="text-slate-300 font-semibold">{secondsLeft}s</strong></span>
+              <span>{t('common.estimatedRemaining')}<strong className="text-text-primary font-semibold">{secondsLeft}s</strong></span>
             </span>
           ) : phase === 'harvesting' ? (
-            <span className="text-emerald-400 font-bold">{t('common.finalizingSession')}</span>
+            <span className="text-status-good font-semibold">{t('common.finalizingSession')}</span>
           ) : phase === 'discovery' ? (
-            <span className="text-sky-400">{t('common.discoveringListings')}</span>
+            <span className="text-brand-accent font-medium">{t('common.discoveringListings')}</span>
           ) : (
-            <span className="text-slate-400">{t('common.connectingWorker')}</span>
+            <span className="text-text-secondary">{t('common.connectingWorker')}</span>
           )}
         </div>
-        <div className="text-2xs text-slate-600 font-bold uppercase tracking-wider select-none">
+        <div className="text-sm text-text-muted font-medium select-none">
           {t('common.liveScraper')}
         </div>
       </div>

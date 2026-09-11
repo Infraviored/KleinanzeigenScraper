@@ -97,19 +97,18 @@ export default function CriteriaTuner({ editKsJson, onChange }: CriteriaTunerPro
   };
 
   return (
-    <div className="bg-slate-950/40 p-5 border border-slate-800 rounded-2xl mt-4 space-y-4">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-slate-900 pb-3 gap-2">
+    <div className="bg-bg-surface/50 p-5 border border-border-subtle rounded-2xl mt-4 space-y-4">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-border-subtle pb-3 gap-2">
         <div>
-          <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider font-mono flex items-center gap-1.5">
-            <span>🎛️</span>
+          <h4 className="text-xl font-bold text-text-primary flex items-center gap-1.5">
             <span>{t('tuner.title')}</span>
           </h4>
-          <p className="text-2xs text-slate-500 font-sans mt-0.5">
+          <p className="text-sm text-text-muted mt-0.5">
             {t('tuner.desc')}
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-2xs bg-slate-800/50 text-slate-400 border border-slate-700/50 px-2.5 py-1 rounded-lg font-bold font-mono">
+          <span className="text-sm bg-bg-input text-text-muted border border-border-subtle px-2.5 py-1 rounded-lg font-bold font-mono">
             {t('tuner.autoNormalized')}
           </span>
         </div>
@@ -125,27 +124,27 @@ export default function CriteriaTuner({ editKsJson, onChange }: CriteriaTunerPro
             : satisfiedVal;
 
           const percentBadgeColor = currentImportance === 0
-            ? 'text-slate-500 bg-slate-800/40 border-slate-800'
+            ? 'text-text-muted bg-bg-input border-border-subtle'
             : (typeof resolvedSatisfiedVal === 'boolean'
               ? (resolvedSatisfiedVal
-                ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20'
-                : 'text-rose-400 bg-rose-500/10 border-rose-500/20')
-              : 'text-sky-400 bg-sky-500/10 border-sky-500/20');
+                ? 'text-status-good bg-status-good/10 border-status-good/20'
+                : 'text-status-danger bg-status-danger/10 border-status-danger/20')
+              : 'text-text-secondary bg-bg-input border-border-subtle');
 
           return (
-            <div key={c.id} className="bg-slate-900/40 p-4 rounded-xl border border-slate-800 hover:border-slate-700 transition-all flex flex-col space-y-4 shadow-inner">
+            <div key={c.id} className="bg-bg-surface/80 p-4 rounded-xl border border-border-subtle hover:border-brand-accent/30 transition-all flex flex-col space-y-4 shadow-inner">
               <div className="flex justify-between items-start gap-2">
                 <div className="flex flex-col space-y-1">
-                  <span className="text-xs font-bold text-slate-200 line-clamp-1">{c.description || c.id}</span>
-                  <span className="text-2xs text-slate-500 font-semibold font-mono tracking-wider uppercase">{c.type || 'boolean'}</span>
+                  <span className="text-base font-bold text-text-primary line-clamp-1">{c.description || c.id}</span>
+                  <span className="text-sm text-text-muted font-mono">{c.type || 'boolean'}</span>
                 </div>
-                <span className={`text-xs font-mono font-bold px-2 py-0.5 rounded-lg border ${percentBadgeColor}`}>
+                <span className={`text-sm font-mono font-bold px-2.5 py-0.5 rounded-lg border ${percentBadgeColor}`}>
                   {currentImportance}%
                 </span>
               </div>
 
-              <div className="flex items-center gap-2 pt-2 border-t border-slate-900/30">
-                <span className="text-2xs text-slate-500 font-bold uppercase tracking-wider">{t('tuner.target')}</span>
+              <div className="flex items-center gap-2 pt-2 border-t border-border-subtle">
+                <span className="text-sm text-text-muted font-semibold">{t('tuner.target')}</span>
                 {typeof resolvedSatisfiedVal === 'boolean' ? (
                   <Button
                     type="button"
@@ -154,8 +153,8 @@ export default function CriteriaTuner({ editKsJson, onChange }: CriteriaTunerPro
                     onClick={() => handleToggleSatisfiedIf(c.id)}
                     className={`font-extrabold px-2.5 py-1.5 border transition-all active:scale-95 cursor-pointer ${
                       resolvedSatisfiedVal
-                        ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/25'
-                        : 'bg-rose-500/10 text-rose-400 border-rose-500/20 hover:bg-rose-500/25'
+                        ? 'bg-status-good/10 text-status-good border-status-good/20 hover:bg-status-good/25'
+                        : 'bg-status-danger/10 text-status-danger border-status-danger/20 hover:bg-status-danger/25'
                     }`}
                   >
                     {resolvedSatisfiedVal ? t('tuner.positiveTrue') : t('tuner.negativeFalse')}
@@ -169,15 +168,15 @@ export default function CriteriaTuner({ editKsJson, onChange }: CriteriaTunerPro
                         const val = e.target.value === '' ? '' : Number(e.target.value);
                         handleUpdateSatisfiedIfValue(c.id, val);
                       }}
-                      className="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1 text-2xs font-bold text-slate-200 font-mono w-16 text-center focus:outline-none focus:border-emerald-500"
+                      className="bg-bg-input border border-border-subtle rounded-lg px-2.5 py-1 text-sm font-bold text-text-primary font-mono w-16 text-center focus:outline-none focus:border-brand-accent"
                     />
-                    <span className="text-2xs text-slate-500 font-bold uppercase">{t('tuner.ideal')}</span>
+                    <span className="text-sm text-text-muted font-semibold">{t('tuner.ideal')}</span>
                   </div>
                 )}
               </div>
 
               <div className="flex flex-col space-y-1.5 pt-1">
-                <div className="flex justify-between text-2xs text-slate-500 font-semibold font-sans px-0.5">
+                <div className="flex justify-between text-sm text-text-muted font-medium px-0.5">
                   <span>{t('tuner.lowImportance')}</span>
                   <span>{t('tuner.criticalImportance')}</span>
                 </div>
@@ -187,9 +186,9 @@ export default function CriteriaTuner({ editKsJson, onChange }: CriteriaTunerPro
                   max="100"
                   value={currentImportance}
                   onChange={(e) => handleUpdateWeight(c.id, parseInt(e.target.value))}
-                  className="w-full accent-emerald-500 bg-slate-950 h-1.5 rounded-lg appearance-none cursor-pointer border border-slate-800 focus:outline-none"
+                  className="w-full accent-brand-accent bg-bg-input h-2 rounded-lg appearance-none cursor-pointer border border-border-subtle focus:outline-none"
                   style={{
-                    background: `linear-gradient(to right, rgb(16, 185, 129) 0%, rgb(16, 185, 129) ${currentImportance}%, rgb(15, 23, 42) ${currentImportance}%, rgb(15, 23, 42) 100%)`
+                    background: `linear-gradient(to right, rgb(232, 121, 103) 0%, rgb(232, 121, 103) ${currentImportance}%, rgba(0, 20, 20, 0.8) ${currentImportance}%, rgba(0, 20, 20, 0.8) 100%)`
                   }}
                 />
               </div>

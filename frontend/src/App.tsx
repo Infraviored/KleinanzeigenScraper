@@ -975,8 +975,8 @@ export default function App() {
     return (
       <div className="min-h-screen bg-brand-primary flex items-center justify-center font-sans">
         <div className="text-center space-y-4">
-          <div className="animate-spin w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full mx-auto" />
-          <p className="text-slate-400 text-sm font-semibold">{t('common.loading')}</p>
+          <div className="animate-spin w-8 h-8 border-2 border-brand-accent border-t-transparent rounded-full mx-auto" />
+          <p className="text-text-secondary text-sm font-medium">{t('common.loading')}</p>
         </div>
       </div>
     )
@@ -985,20 +985,15 @@ export default function App() {
   if (!appUser) {
     return (
       <div className="min-h-screen bg-brand-primary flex items-center justify-center p-6 font-sans relative overflow-hidden">
-        {/* Glow Effects */}
-        <div className="absolute -right-32 -top-32 w-96 h-96 rounded-full bg-emerald-500/10 blur-3xl pointer-events-none" />
-        <div className="absolute -left-32 -bottom-32 w-96 h-96 rounded-full bg-indigo-500/5 blur-3xl pointer-events-none" />
-        
         <div className="w-full max-w-md space-y-6 z-10">
           <div className="text-center">
             <img src={`${import.meta.env.BASE_URL}logo-default.svg`} alt="prismdeals Logo" className="w-64 h-auto mx-auto" />
           </div>
 
-
           <Card className="p-6 space-y-4">
             <form onSubmit={handleLoginSubmit} className="space-y-4">
               <div className="space-y-1.5">
-                <label className="text-2xs text-slate-500 font-bold uppercase tracking-wider block">
+                <label className="text-sm text-text-secondary font-medium block">
                   {t('auth.emailLabel')}
                 </label>
                 <Input
@@ -1011,7 +1006,7 @@ export default function App() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-2xs text-slate-500 font-bold uppercase tracking-wider block">
+                <label className="text-sm text-text-secondary font-medium block">
                   {t('auth.passwordLabel')}
                 </label>
                 <Input
@@ -1024,7 +1019,7 @@ export default function App() {
               </div>
 
               {loginError && (
-                <div className="bg-rose-500/10 border border-rose-500/25 p-3 rounded-xl text-xs text-rose-400 font-bold animate-fadeIn">
+                <div className="bg-status-danger/10 border border-status-danger/25 p-3 rounded-xl text-sm text-status-danger font-semibold animate-fadeIn">
                   {loginError}
                 </div>
               )}
@@ -1045,19 +1040,19 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-brand-primary text-slate-100 flex flex-col font-sans">
+    <div className="min-h-screen bg-brand-primary text-text-primary flex flex-col font-sans">
       {/* Header */}
       <header className="h-16 border-b border-border-subtle bg-bg-surface/60 backdrop-blur-md sticky top-0 z-40 px-6 flex items-center justify-between">
         <div className="flex items-center space-x-3 cursor-pointer" onClick={() => navigate('landing', null, null)}>
           <img src={`${import.meta.env.BASE_URL}logo-icon.svg`} alt="prismdeals Icon" className="w-8 h-8 rounded-lg shadow shadow-black/30" />
           {/* eslint-disable-next-line no-restricted-syntax -- the product's name, not copy: it reads the same in every language */}
-          <span className="font-semibold text-lg tracking-wide text-white font-sans">prismdeals</span>
+          <span className="font-bold text-xl tracking-wide text-white font-sans">prismdeals</span>
         </div>
 
         {/* Hamburger Menu Toggle for Mobile */}
         <button
           onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-          className="md:hidden p-2 text-text-muted hover:text-white transition-colors focus:outline-none"
+          className="md:hidden p-2 text-text-muted hover:text-white transition-colors focus:outline-none min-w-[44px] min-h-[44px] flex items-center justify-center"
           aria-label="Toggle menu"
         >
           {isMobileMenuOpen ? <X className="w-6 h-6 animate-fade-in" /> : <Menu className="w-6 h-6 animate-fade-in" />}
@@ -1068,15 +1063,15 @@ export default function App() {
           {/* Kleinanzeigen scraper connection status */}
           <div className="flex items-center gap-3 bg-bg-input border border-border-subtle rounded-xl py-1.5 px-3 shadow-inner">
             <div className="flex items-center space-x-1.5">
-              <span className={cn("w-2 h-2 rounded-full", sessionEmail ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500')} />
-              <span className="text-2xs font-semibold text-text-muted">
+              <span className={cn("w-2 h-2 rounded-full", sessionEmail ? 'bg-status-good animate-pulse' : 'bg-status-danger')} />
+              <span className="text-sm font-medium text-text-muted">
                 {sessionEmail ? t('common.sessionActive', { email: sessionEmail }) : t('common.sessionUnauth')}
               </span>
             </div>
 
             {!sessionEmail ? (
               <Button
-                variant="mini-emerald"
+                variant="primary"
                 size="xs"
                 onClick={handleTriggerLogin}
                 disabled={isScraping || isProcessing}
@@ -1110,7 +1105,7 @@ export default function App() {
                 variant="badge"
                 size="sm"
                 onClick={() => setIsLangDropdownOpen(!isLangDropdownOpen)}
-                className="px-3 py-1.5 text-2xs flex items-center justify-center gap-1.5 border-border-subtle"
+                className="px-3 py-1.5 text-sm flex items-center justify-center gap-1.5 border-border-subtle"
               >
                 <Globe className="w-3.5 h-3.5 text-text-muted" />
                 <span>{lang.toUpperCase()}</span>
@@ -1123,7 +1118,7 @@ export default function App() {
                   <div className="absolute right-0 mt-1.5 w-24 bg-bg-surface border border-border-subtle rounded-xl shadow-xl z-20 py-1 overflow-hidden animate-fade-in">
                     <button
                       onClick={() => { toggleLanguage(); setIsLangDropdownOpen(false); }}
-                      className="w-full text-left px-3 py-1.5 text-xs text-text-secondary hover:bg-bg-surface-hover font-semibold transition-colors"
+                      className="w-full text-left px-3 py-1.5 text-sm text-text-secondary hover:bg-bg-surface-hover font-medium transition-colors min-h-[44px] flex items-center"
                     >
                       {lang === 'en' ? 'DEUTSCH' : 'ENGLISH'}
                     </button>
@@ -1146,10 +1141,10 @@ export default function App() {
               <Settings className="w-4.5 h-4.5 text-text-muted hover:text-brand-accent transition-all duration-300" />
             </Button>
             <Button
-              variant="badge"
+              variant="danger"
               size="sm"
               onClick={handleLogout}
-              className="px-3 py-1.5 text-2xs text-rose-400 border-rose-500/20 hover:bg-rose-500/10 flex items-center justify-center gap-1.5 text-center"
+              className="px-3 py-1.5 text-sm flex items-center justify-center gap-1.5 text-center"
             >
               <LogOut className="w-3.5 h-3.5" />
               <span>{t('auth.logout')}</span>
@@ -1157,8 +1152,6 @@ export default function App() {
           </div>
         </div>
       </header>
-
-
 
       {/* Mobile Navigation Drawer Sheet (slide-out overlay) */}
       {isMobileMenuOpen && (
@@ -1169,10 +1162,10 @@ export default function App() {
           />
           <div className="fixed top-0 right-0 bottom-0 w-72 bg-bg-surface border-l border-border-subtle p-6 z-50 flex flex-col gap-6 md:hidden animate-slide-left shadow-2xl">
             <div className="flex items-center justify-between border-b border-border-subtle pb-4">
-              <span className="font-bold text-sm text-white tracking-wide uppercase">{t('common.navigation')}</span>
+              <span className="font-bold text-base text-text-primary tracking-wide">{t('common.navigation')}</span>
               <button 
                 onClick={() => setIsMobileMenuOpen(false)}
-                className="p-1 rounded-lg border border-border-subtle text-text-muted hover:text-white"
+                className="p-1 rounded-lg border border-border-subtle text-text-muted hover:text-white min-w-[44px] min-h-[44px] flex items-center justify-center"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -1181,15 +1174,15 @@ export default function App() {
             {/* Kleinanzeigen scraper connection status */}
             <div className="flex flex-col gap-3 bg-bg-input border border-border-subtle rounded-xl p-3 shadow-inner">
               <div className="flex items-center space-x-1.5">
-                <span className={cn("w-2 h-2 rounded-full", sessionEmail ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500')} />
-                <span className="text-2xs font-semibold text-text-muted">
+                <span className={cn("w-2 h-2 rounded-full", sessionEmail ? 'bg-status-good animate-pulse' : 'bg-status-danger')} />
+                <span className="text-sm font-medium text-text-muted">
                   {sessionEmail ? t('common.sessionActive', { email: sessionEmail }) : t('common.sessionUnauth')}
                 </span>
               </div>
 
               {!sessionEmail ? (
                 <Button
-                  variant="mini-emerald"
+                  variant="primary"
                   size="sm"
                   onClick={() => { handleTriggerLogin(); setIsMobileMenuOpen(false); }}
                   disabled={isScraping || isProcessing}
@@ -1214,7 +1207,7 @@ export default function App() {
 
             {/* Language toggle button for Mobile */}
             <div className="space-y-1">
-              <span className="text-2xs font-bold text-text-muted uppercase tracking-wider block font-mono">{t('common.language')}</span>
+              <span className="text-sm font-medium text-text-secondary block">{t('common.language')}</span>
               <Button
                 variant="badge"
                 size="sm"
@@ -1225,7 +1218,7 @@ export default function App() {
                   <Globe className="w-4.5 h-4.5 text-text-muted" />
                   <span>{lang === 'en' ? 'ENGLISH' : 'DEUTSCH'}</span>
                 </span>
-                <span className="text-2xs text-brand-accent font-bold">{t('common.switchTo', { lang: lang === 'en' ? 'DE' : 'EN' })}</span>
+                <span className="text-sm text-brand-accent font-semibold">{t('common.switchTo', { lang: lang === 'en' ? 'DE' : 'EN' })}</span>
               </Button>
             </div>
 
@@ -1245,10 +1238,10 @@ export default function App() {
               </Button>
 
               <Button
-                variant="badge"
+                variant="danger"
                 size="sm"
                 onClick={() => { handleLogout(); setIsMobileMenuOpen(false); }}
-                className="w-full justify-start gap-2.5 text-rose-400 border-rose-500/20 hover:bg-rose-500/10"
+                className="w-full justify-start gap-2.5"
               >
                 <LogOut className="w-4 h-4" />
                 <span>{t('auth.logout')}</span>
@@ -1264,10 +1257,10 @@ export default function App() {
         {/* VIEW 1: LANDING VIEW - CAMPAIGN HUB GRID */}
         {view === 'landing' && (
           <div className="space-y-6 animate-fadeIn w-full">
-            <div className="flex justify-between items-center pb-4 border-b border-slate-800/80 w-full mb-6">
+            <div className="flex justify-between items-center pb-4 border-b border-border-subtle w-full mb-6">
               <div>
-                <h1 className="text-xl font-bold text-slate-200">{t('landing.title')}</h1>
-                <p className="text-2xs text-slate-500 font-semibold uppercase tracking-wider">{t('landing.subtitle')}</p>
+                <h1 className="text-2xl font-bold text-text-primary tracking-tight">{t('landing.title')}</h1>
+                <p className="text-base text-text-secondary mt-1">{t('landing.subtitle')}</p>
               </div>
             </div>
 
@@ -1297,18 +1290,17 @@ export default function App() {
                     className="p-4 justify-between space-y-4"
                   >
                     {firstImg ? (
-                      <div className="w-full aspect-[21/9] rounded-xl overflow-hidden relative border border-slate-800 shadow-inner">
+                      <div className="w-full aspect-[21/9] rounded-xl overflow-hidden relative border border-border-subtle shadow-inner">
                         <img
                           src={firstImg}
                           alt={c.name}
                           className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                         />
-                        <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/20 to-transparent" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-bg-base via-bg-base/20 to-transparent" />
                       </div>
                     ) : (
-                      <div className="w-full aspect-[21/9] rounded-xl relative border border-slate-800/80 bg-gradient-to-br from-indigo-500/10 via-slate-950 to-emerald-500/5 flex items-center justify-center overflow-hidden">
-                        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-500/5 via-transparent to-transparent" />
-                        <span className="text-2xs font-bold text-slate-600 uppercase tracking-widest font-mono">{t('landing.noListings')}</span>
+                      <div className="w-full aspect-[21/9] rounded-xl relative border border-border-subtle bg-bg-surface flex items-center justify-center overflow-hidden">
+                        <span className="text-sm font-medium text-text-muted">{t('landing.noListings')}</span>
                       </div>
                     )}
 
@@ -1316,11 +1308,11 @@ export default function App() {
                       <div className="space-y-2">
                         <div className="flex justify-between items-start">
                           <div>
-                            <h3 className="text-sm font-extrabold text-slate-200 group-hover:text-emerald-400 transition-colors tracking-tight line-clamp-1">{c.name}</h3>
-                            <p className="text-2xs text-slate-500 font-semibold uppercase tracking-wider mt-0.5">{t('landing.profileType')}</p>
+                            <h3 className="text-xl font-bold text-text-primary group-hover:text-brand-accent transition-colors tracking-tight line-clamp-1">{c.name}</h3>
+                            <p className="text-sm text-text-secondary mt-0.5">{t('landing.profileType')}</p>
                           </div>
 
-                          <div className="flex items-center gap-1 shrink-0">
+                          <div className="flex items-center shrink-0">
                             <Button
                               variant="icon"
                               size="xs"
@@ -1330,68 +1322,69 @@ export default function App() {
                                 navigate('edit', c.id, firstTarget?.id || null);
                               }}
                               title={t('landing.configureTooltip')}
-                              className="p-1.5"
+                              aria-label={t('landing.configureTooltip')}
+                              className="w-11 h-11 flex items-center justify-center rounded-xl"
                             >
                               <Settings className="w-5 h-5 transition-transform duration-500 hover:rotate-90 text-text-muted hover:text-brand-accent" />
-                            </Button>
-                            <Button
-                              variant="icon"
-                              size="xs"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDeleteCampaign(c.id, c.name, campaignSearches.length, campaignListings.length);
-                              }}
-                              title={t('landing.deleteTooltip')}
-                              className="p-1.5"
-                            >
-                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-                                   strokeLinecap="round" strokeLinejoin="round"
-                                   className="w-5 h-5 text-text-muted hover:text-rose-400 transition-colors"
-                                   aria-hidden="true">
-                                <path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-                              </svg>
                             </Button>
                           </div>
                         </div>
 
-                        <div className="flex flex-wrap gap-1.5 text-2xs font-semibold">
-                          <span className="bg-slate-950/60 text-slate-400 border border-border-subtle px-2 py-0.5 rounded-md">
-                            {campaignSearches.length} {t('landing.targets')}
+                        <div className="flex flex-wrap gap-1.5 text-sm font-medium">
+                          <span className="bg-bg-input text-text-secondary border border-border-subtle px-2.5 py-1 rounded-md">
+                            {campaignSearches.length} {campaignSearches.length === 1 ? t('landing.target') : t('landing.targets')}
                           </span>
-                          <span className="bg-slate-950/60 text-emerald-400 border border-emerald-500/10 px-2 py-0.5 rounded-md font-bold">
+                          <span className="bg-bg-input text-text-primary border border-border-subtle px-2.5 py-1 rounded-md font-semibold">
                             {campaignListings.length} {t('landing.matches')}
                           </span>
                           {unprocessedCount > 0 && (
-                            <span className="bg-indigo-500/15 text-indigo-400 border border-indigo-500/25 px-2 py-0.5 rounded-md font-extrabold animate-pulse">
+                            <span className="bg-brand-accent/15 text-brand-accent border border-brand-accent/25 px-2.5 py-1 rounded-md font-semibold">
                               {unprocessedCount} {t('landing.new')}
                             </span>
                           )}
                         </div>
                       </div>
 
-                      <div className="border-t border-border-subtle mt-4 pt-3 flex justify-between items-center text-xs text-slate-400 font-bold">
-                        <span className="group-hover:text-emerald-400 transition-colors flex items-center space-x-1">
-                          <span>{t('landing.openDashboard')}</span>
-                          <span className="transform group-hover:translate-x-1 transition-transform">&rarr;</span>
+                      <div className="border-t border-border-subtle mt-4 pt-3 flex justify-between items-center text-base font-semibold">
+                        <span className="text-text-secondary group-hover:text-brand-accent transition-colors">
+                          {t('landing.openDashboard')}
                         </span>
+                        <Button
+                          variant="icon"
+                          size="xs"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteCampaign(c.id, c.name, campaignSearches.length, campaignListings.length);
+                          }}
+                          title={t('landing.deleteTooltip')}
+                          aria-label={t('landing.deleteTooltip')}
+                          className="w-11 h-11 flex items-center justify-center rounded-xl text-text-muted hover:text-status-danger transition-colors"
+                        >
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                               strokeLinecap="round" strokeLinejoin="round"
+                               className="w-5 h-5"
+                               aria-hidden="true">
+                            <path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                          </svg>
+                        </Button>
                       </div>
                     </div>
                   </Card>
                 )
               })}
 
-              {/* "+" Add Hunt Campaign Card */}
+              {/* "+" Add Search Card */}
               <Card
                 interactive
                 onClick={() => setView('create-campaign')}
-                className="bg-slate-900/20 border-dashed border-slate-800 hover:border-emerald-500/50 hover:bg-emerald-500/[0.02] p-6 items-center justify-center space-y-4 h-full min-h-[220px]"
+                className="bg-bg-surface/20 border-dashed border-border-subtle hover:border-brand-accent/50 hover:bg-brand-accent/[0.02] p-6 items-center justify-center space-y-4 h-full min-h-[220px]"
               >
-                <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center font-bold text-xl group-hover:bg-emerald-500 group-hover:text-slate-950 transition-all shadow-inner">
+                <div className="w-12 h-12 rounded-2xl bg-brand-accent/10 text-brand-accent flex items-center justify-center font-bold text-3xl group-hover:bg-brand-accent group-hover:text-bg-base transition-all shadow-inner">
                   +
                 </div>
                 <div className="text-center">
-                  <h3 className="text-sm font-bold text-slate-300 group-hover:text-emerald-400 transition-colors">{t('landing.createCampaign')}</h3>
-                  <p className="text-2xs text-slate-500 mt-1 max-w-[200px]">{t('landing.createSubtitle')}</p>
+                  <h3 className="text-base font-bold text-text-primary group-hover:text-brand-accent transition-colors">{t('landing.createCampaign')}</h3>
+                  <p className="text-sm text-text-muted mt-1 max-w-[200px]">{t('landing.createSubtitle')}</p>
                 </div>
               </Card>
             </div>
@@ -1412,7 +1405,7 @@ export default function App() {
                   <span className="mr-1">←</span>
                   <span>{t('common.backToCampaigns')}</span>
                 </Button>
-                <div className="w-[1px] h-5 bg-slate-800" />
+                <div className="w-[1px] h-5 bg-border-subtle" />
                 <Button
                   variant="icon"
                   size="xs"
@@ -1463,7 +1456,7 @@ export default function App() {
                 </Button>
                 <span className="text-text-muted hidden sm:inline">|</span>
                 <div className="flex items-center space-x-2">
-                  <h2 className="text-base font-bold text-white">
+                  <h2 className="text-xl font-bold text-white">
                     {campaigns.find(c => c.id === currentCampaignId)?.name} {t('listing.dashboardTitle')}
                   </h2>
 
@@ -1562,17 +1555,17 @@ export default function App() {
             />
 
             {isProcessing && (
-              <div className="bg-indigo-500/5 border border-indigo-500/20 p-4 rounded-2xl flex items-center space-x-3 text-xs text-indigo-400">
-                <div className="animate-pulse w-3 h-3 rounded-full bg-indigo-400" />
+              <div className="bg-brand-accent/5 border border-brand-accent/20 p-4 rounded-2xl flex items-center space-x-3 text-sm text-brand-accent">
+                <div className="animate-pulse w-3 h-3 rounded-full bg-brand-accent" />
                 <span className="font-semibold">{processingStatus}</span>
               </div>
             )}
 
             {/* Grid/Split of Matched Listings */}
             {filteredListings.length === 0 ? (
-              <div className="bg-slate-900/20 border border-dashed border-border-subtle rounded-2xl p-16 text-center shadow-inner">
-                <span className="text-sm text-slate-500 font-semibold block mb-1">{t('common.noMatchingListings')}</span>
-                <span className="text-xs text-slate-600 block">{t('common.dashboardEmptyHint')}</span>
+              <div className="bg-bg-surface/20 border border-dashed border-border-subtle rounded-2xl p-16 text-center shadow-inner">
+                <span className="text-base text-text-muted font-semibold block mb-1">{t('common.noMatchingListings')}</span>
+                <span className="text-sm text-text-muted block">{t('common.dashboardEmptyHint')}</span>
               </div>
             ) : (
               <div className="flex flex-col lg:flex-row gap-6 items-start w-full relative">
@@ -1614,14 +1607,14 @@ export default function App() {
                         />
                       ) : (
                         <div className="h-full flex flex-col items-center justify-center text-center p-8 text-text-muted">
-                          <p className="text-xs font-semibold">{t('common.listingNotFound')}</p>
+                          <p className="text-sm font-semibold">{t('common.listingNotFound')}</p>
                         </div>
                       );
                     })()
                   ) : (
                     <div className="h-[350px] flex flex-col items-center justify-center text-center p-8 text-text-muted border border-dashed border-border-subtle rounded-xl bg-bg-input/20">
                       <Sparkles className="w-8 h-8 text-brand-accent/40 mb-3 animate-pulse" />
-                      <p className="text-xs font-semibold">{t('listing.selectListingPrompt') || 'Select a listing from the list to view its full AI evaluation, specs, and outreach drafts.'}</p>
+                      <p className="text-sm font-semibold">{t('listing.selectListingPrompt') || 'Select a listing from the list to view its full AI evaluation, specs, and outreach drafts.'}</p>
                     </div>
                   )}
                 </div>
@@ -1666,7 +1659,7 @@ export default function App() {
           <div className="flex flex-col space-y-6 w-full animate-fadeIn max-w-6xl mx-auto py-2">
 
             {/* Sub Header */}
-            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center items-start gap-3 pb-4 border-b border-slate-800 w-full">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center items-start gap-3 pb-4 border-b border-border-subtle w-full">
               <div className="flex flex-col sm:flex-row sm:items-center items-start gap-3 w-full sm:w-auto">
                 <Button
                   variant="badge"
@@ -1676,7 +1669,7 @@ export default function App() {
                 >
                   <span>← {t('common.backToDashboard')}</span>
                 </Button>
-                <div className="hidden sm:block w-[1px] h-5 bg-slate-800 shrink-0" />
+                <div className="hidden sm:block w-[1px] h-5 bg-border-subtle shrink-0" />
                 <div className="flex flex-col min-w-0">
                   {isEditingCampaignName ? (
                     <div className="flex items-center space-x-2">
@@ -1703,7 +1696,7 @@ export default function App() {
                     </div>
                   ) : (
                     <div className="flex items-center space-x-2 group">
-                      <h1 className="text-base font-bold text-slate-200 truncate">
+                      <h1 className="text-xl font-bold text-text-primary truncate">
                         {campaigns.find(c => c.id === currentCampaignId)?.name} {t('common.settings')}
                       </h1>
                       <Button
@@ -1720,7 +1713,7 @@ export default function App() {
                       </Button>
                     </div>
                   )}
-                  <p className="text-2xs text-slate-500 font-semibold uppercase tracking-wider mt-0.5">{t('common.targetsAndGuidelines')}</p>
+                  <p className="text-sm text-text-secondary mt-0.5">{t('common.targetsAndGuidelines')}</p>
                 </div>
               </div>
             </div>
@@ -1733,17 +1726,14 @@ export default function App() {
               <Card className={`p-8 mx-auto w-full relative animate-fadeIn ${
                 routeMode ? 'max-w-3xl' : 'max-w-xl overflow-hidden'
               }`}>
-                <div className="absolute -right-16 -top-16 w-36 h-36 rounded-full bg-emerald-500/5 blur-3xl pointer-events-none" />
-                
                 <div className="space-y-1.5 text-center">
-                  <span className="mx-auto text-2xs bg-emerald-500/10 text-emerald-400 font-bold px-2.5 py-0.5 rounded uppercase tracking-wider w-fit block">{t('common.campaignTargetConfig')}</span>
-                  <h2 className="text-lg font-bold text-slate-200 font-sans tracking-tight">{t('common.pasteSearchUrl')}</h2>
-                  <p className="text-xs text-slate-400 leading-relaxed font-semibold">{t('wizard.targetsDescription')}</p>
+                  <h2 className="text-2xl font-bold text-text-primary font-sans tracking-tight">{t('common.pasteSearchUrl')}</h2>
+                  <p className="text-base text-text-secondary leading-relaxed">{t('wizard.targetsDescription')}</p>
                 </div>
 
                 <div className="space-y-4 pt-2">
                   <div className="space-y-1.5">
-                    <label className="text-2xs text-slate-500 font-bold uppercase tracking-wider block">{t('common.pasteSearchUrl')}</label>
+                    <label className="text-sm text-text-secondary font-medium block">{t('common.pasteSearchUrl')}</label>
                     <Input
                       type="text"
                       value={newTargetUrl}
@@ -1754,7 +1744,7 @@ export default function App() {
                   </div>
 
                   {/* Where to search: around the URL's own place, or along a drive. */}
-                  <div className="flex rounded-xl bg-slate-950/60 border border-border-subtle p-1 text-xs font-bold">
+                  <div className="flex rounded-xl bg-bg-input border border-border-subtle p-1 text-sm font-bold">
                     {[
                       { key: false, label: t('common.searchModePoint') },
                       { key: true, label: t('common.searchModeRoute') },
@@ -1766,8 +1756,8 @@ export default function App() {
                         aria-pressed={routeMode === mode.key}
                         className={`flex-1 rounded-lg px-3 py-2 transition-colors ${
                           routeMode === mode.key
-                            ? 'bg-emerald-500/15 text-emerald-300'
-                            : 'text-slate-400 hover:text-slate-200'
+                            ? 'bg-brand-accent/15 text-brand-accent'
+                            : 'text-text-muted hover:text-text-primary'
                         }`}
                       >
                         {mode.label}
@@ -1776,8 +1766,8 @@ export default function App() {
                   </div>
 
                   {routeMode && (
-                    <div className="bg-slate-950/60 border border-border-subtle rounded-2xl p-4 space-y-4 shadow-inner animate-fadeIn">
-                      <p className="text-xs text-slate-400 leading-relaxed">{t('common.routeExplainer')}</p>
+                    <div className="bg-bg-surface border border-border-subtle rounded-2xl p-4 space-y-4 shadow-inner animate-fadeIn">
+                      <p className="text-sm text-text-secondary leading-relaxed">{t('common.routeExplainer')}</p>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <PlaceInput
@@ -1817,7 +1807,7 @@ export default function App() {
                           commitLabel={t('corridor.commitNew')}
                         />
                       ) : (
-                        <p className="text-2xs text-text-muted text-center py-2">
+                        <p className="text-sm text-text-muted text-center py-2">
                           {!newTargetUrl || !isValidKleinanzeigenUrl(newTargetUrl)
                             ? t('common.routeNeedsUrl')
                             : !routeFrom && !routeTo
@@ -1829,12 +1819,12 @@ export default function App() {
                       )}
 
                       {routeError && (
-                        <div className="text-xs bg-rose-500/10 text-rose-400 px-3.5 py-2.5 rounded-xl border border-rose-500/10 font-bold animate-fadeIn">
+                        <div className="text-sm bg-status-danger/10 text-status-danger px-3.5 py-2.5 rounded-xl border border-status-danger/20 font-semibold animate-fadeIn">
                           {routeError}
                         </div>
                       )}
                       {routeResult && (
-                        <div className="text-xs bg-emerald-500/10 text-emerald-400 px-3.5 py-2.5 rounded-xl border border-emerald-500/10 font-bold animate-fadeIn">
+                        <div className="text-sm bg-status-good/10 text-status-good px-3.5 py-2.5 rounded-xl border border-status-good/20 font-semibold animate-fadeIn">
                           {t('common.corridorPlanned', { count: routeResult.count, width: routeResult.width })}
                         </div>
                       )}
@@ -1843,32 +1833,32 @@ export default function App() {
 
                   {/* Reactive Indicators Panel */}
                   {!routeMode && newTargetUrl && (
-                    <div className="bg-slate-950/60 border border-border-subtle rounded-2xl p-4 space-y-3 shadow-inner animate-fadeIn">
-                      <div className="text-xs font-bold text-slate-400 border-b border-slate-900 pb-1.5 flex justify-between items-center">
+                    <div className="bg-bg-surface border border-border-subtle rounded-2xl p-4 space-y-3 shadow-inner animate-fadeIn">
+                      <div className="text-sm font-semibold text-text-secondary border-b border-border-subtle pb-1.5 flex justify-between items-center">
                         <span>{t('common.diagnostics')}</span>
                         {previewLoading && (
                           <div className="flex items-center space-x-1">
-                            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-                            <span className="text-2xs text-emerald-400 font-mono">{t('common.processing')}</span>
+                            <span className="w-2 h-2 rounded-full bg-brand-accent animate-ping" />
+                            <span className="text-sm text-brand-accent font-mono">{t('common.processing')}</span>
                           </div>
                         )}
                       </div>
 
                       {/* URL Validity indicator */}
-                      <div className="flex items-center space-x-2 text-xs">
-                        <span className="text-2xs font-mono text-slate-500 shrink-0">{t('common.urlStatus')}</span>
+                      <div className="flex items-center space-x-2 text-sm">
+                        <span className="text-sm font-mono text-text-muted shrink-0">{t('common.urlStatus')}</span>
                         {isValidKleinanzeigenUrl(newTargetUrl) ? (
-                          <span className="text-emerald-400 font-semibold">{t('common.validUrl')}</span>
+                          <span className="text-status-good font-semibold">{t('common.validUrl')}</span>
                         ) : (
-                          <span className="text-rose-400 font-semibold">{t('common.invalidUrl')}</span>
+                          <span className="text-status-danger font-semibold">{t('common.invalidUrl')}</span>
                         )}
                       </div>
 
                       {/* Suggested Title */}
                       {isValidKleinanzeigenUrl(newTargetUrl) && (
-                        <div className="flex items-center space-x-2 text-xs">
-                          <span className="text-2xs font-mono text-slate-500 shrink-0">{t('common.suggestedName')}</span>
-                          <span className="text-slate-200 font-bold bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
+                        <div className="flex items-center space-x-2 text-sm">
+                          <span className="text-sm font-mono text-text-muted shrink-0">{t('common.suggestedName')}</span>
+                          <span className="text-text-primary font-medium bg-bg-input px-2 py-0.5 rounded border border-border-subtle">
                             {suggestTitleFromUrl(newTargetUrl) || t('common.extractingTitle')}
                           </span>
                         </div>
@@ -1876,34 +1866,34 @@ export default function App() {
 
                       {/* Diagnostic Logs */}
                       {previewLoading && (
-                        <div className="text-xs text-slate-400 space-y-1 font-mono pt-1">
+                        <div className="text-sm text-text-muted space-y-1 font-mono pt-1">
                           <div className="flex items-center space-x-1.5">
-                            <span className="text-emerald-400">&gt;</span>
+                            <span className="text-brand-accent">&gt;</span>
                             <span>{t('common.diagnosticLog1')}</span>
                           </div>
                           <div className="flex items-center space-x-1.5">
-                            <span className="text-emerald-400">&gt;</span>
+                            <span className="text-brand-accent">&gt;</span>
                             <span>{t('common.diagnosticLog2')}</span>
                           </div>
                           <div className="flex items-center space-x-1.5">
-                            <span className="text-emerald-400">&gt;</span>
+                            <span className="text-brand-accent">&gt;</span>
                             <span>{t('common.diagnosticLog3')}</span>
                           </div>
                           <div className="flex items-center space-x-1.5">
-                            <span className="text-emerald-400">&gt;</span>
+                            <span className="text-brand-accent">&gt;</span>
                             <span>{t('common.diagnosticLog4')}</span>
                           </div>
                         </div>
                       )}
 
                       {previewCount !== null && (
-                        <div className="text-xs bg-emerald-500/10 text-emerald-400 px-3.5 py-2.5 rounded-xl border border-emerald-500/10 font-bold animate-fadeIn">
+                        <div className="text-sm bg-status-good/10 text-status-good px-3.5 py-2.5 rounded-xl border border-status-good/20 font-semibold animate-fadeIn">
                           {t('common.foundCount', { count: previewCount })}
                         </div>
                       )}
 
                       {previewError && (
-                        <div className="text-xs bg-rose-500/10 text-rose-400 px-3.5 py-2.5 rounded-xl border border-rose-500/10 font-bold animate-fadeIn">
+                        <div className="text-sm bg-status-danger/10 text-status-danger px-3.5 py-2.5 rounded-xl border border-status-danger/20 font-semibold animate-fadeIn">
                           {previewError}
                         </div>
                       )}
@@ -1983,10 +1973,6 @@ export default function App() {
         {view === 'create-campaign' && (
           <div className="flex flex-col items-center justify-center space-y-6 w-full animate-fadeIn py-12 max-w-lg mx-auto">
             <Card className="p-8 w-full relative overflow-hidden">
-              {/* Abstract decorative glowing orb */}
-              <div className="absolute -right-16 -top-16 w-36 h-36 rounded-full bg-emerald-500/10 blur-3xl pointer-events-none" />
-              <div className="absolute -left-16 -bottom-16 w-36 h-36 rounded-full bg-indigo-500/5 blur-3xl pointer-events-none" />
-
               <div className="space-y-2">
                 <div className="flex items-center space-x-2">
                   <Button
@@ -1994,16 +1980,16 @@ export default function App() {
                     size="xs"
                     onClick={() => setView('landing')}
                   >
-                    <span>&larr; {t('common.back')}</span>
+                    <span>← {t('common.back')}</span>
                   </Button>
                 </div>
-                <h2 className="text-xl font-extrabold text-slate-200 font-sans tracking-tight">{t('wizard.createCampaignTitle')}</h2>
-                <p className="text-xs text-slate-400 leading-relaxed font-medium">{t('wizard.createCampaignDesc')}</p>
+                <h2 className="text-2xl font-bold text-text-primary font-sans tracking-tight">{t('wizard.createCampaignTitle')}</h2>
+                <p className="text-base text-text-secondary leading-relaxed font-normal">{t('wizard.createCampaignDesc')}</p>
               </div>
 
               <div className="space-y-4 pt-2">
                 <div className="space-y-1.5">
-                  <label className="text-2xs text-slate-500 font-bold uppercase tracking-wider block">{t('wizard.campaignNameLabel')}</label>
+                  <label className="text-sm text-text-secondary font-medium block">{t('wizard.campaignNameLabel')}</label>
                   <Input
                     type="text"
                     value={newCampaignName}
@@ -2040,7 +2026,7 @@ export default function App() {
                   }}
                   className="flex-1 py-3"
                 >
-                  {t('common.save')} &rarr;
+                  {t('common.save')}
                 </Button>
               </div>
             </Card>
