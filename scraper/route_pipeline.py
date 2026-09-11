@@ -18,7 +18,6 @@ scraper's path: if routing is down, listings still arrive, they simply arrive
 without a detour until the next annotate run.
 """
 
-import json
 import logging
 
 import geo
@@ -64,6 +63,43 @@ def resolve_place(where, centroids=None, places=None):
     )
 
 
+def plan_corridor(
+    base_url,
+    origin,
+    destination,
+    radius_km=30.0,
+    half_width_km=15.0,
+    client=None,
+    resolver=None,
+):
+    """Resolves both ends, routes between them, and covers the corridor.
+
+    The one place this sequence lives. It was written out three times — in
+    `create`, in `replan`, and inlined into the preview — and the copies had
+    already drifted: the preview dropped the resolver and the empty-circles
+    check, so it could draw a corridor the commit would then refuse. A preview
+    that plans something other than what committing would build is worse than
+    no preview.
+    """
+    client = client or routing.OsrmClient()
+    start = resolve_place(origin)
+    end = resolve_place(destination)
+
+    plan = route_search.plan(
+        base_url,
+        client.route([start, end]),
+        radius_km=radius_km,
+        half_width_km=half_width_km,
+        resolver=resolver,
+    )
+    if not plan.circles:
+        raise ValueError(
+            "No circle centre could be resolved to a location the platform "
+            "recognises, so this corridor cannot be searched."
+        )
+    return plan
+
+
 def create(
     conn,
     base_url,
@@ -78,25 +114,15 @@ def create(
     resolver=None,
 ):
     """Plans a corridor and registers its searches. Returns (route_id, plan)."""
-    client = client or routing.OsrmClient()
-
-    start = resolve_place(origin)
-    end = resolve_place(destination)
-
-    route = client.route([start, end])
-    plan = route_search.plan(
+    plan = plan_corridor(
         base_url,
-        route,
+        origin,
+        destination,
         radius_km=radius_km,
         half_width_km=half_width_km,
+        client=client,
         resolver=resolver,
     )
-
-    if not plan.circles:
-        raise ValueError(
-            "No circle centre could be resolved to a location, so this corridor "
-            f"cannot be searched. Unresolved postal codes: {plan.unresolved}"
-        )
 
     route_id, conflicts = route_store.save_plan(
         conn,
@@ -112,8 +138,8 @@ def create(
     logger.info(
         "Route %s: %.0f km, %.0f min, %d searches covering a %.0f km corridor.",
         route_id,
-        route.distance_km,
-        route.duration_min,
+        plan.route.distance_km,
+        plan.route.duration_min,
         len(plan.circles),
         half_width_km * 2,
     )
@@ -270,85 +296,33 @@ def replan(conn, route_search_id, radius_km, half_width_km, client=None, resolve
 
     Returns (kept, added, removed).
     """
-    import route_search
-    import route_store
-
     route_store.ensure_schema(conn)
-    row = conn.execute(
-        "SELECT base_url, origin, destination, name, campaign_id, knowledge_set_id "
-        "FROM route_searches WHERE id = ?",
-        (route_search_id,),
-    ).fetchone()
-    if row is None:
+    asked = route_store.definition(conn, route_search_id)
+    if asked is None:
         raise ValueError(f"No route search with id {route_search_id}")
 
-    base_url, origin, destination, name, campaign_id, knowledge_set_id = row
-
-    client = client or routing.OsrmClient()
-    start = resolve_place(origin)
-    end = resolve_place(destination)
-    plan = route_search.plan(
-        base_url,
-        client.route([start, end]),
+    plan = plan_corridor(
+        asked["base_url"],
+        asked["origin"],
+        asked["destination"],
         radius_km=radius_km,
         half_width_km=half_width_km,
+        client=client,
         resolver=resolver,
     )
-    if not plan.circles:
-        raise ValueError(
-            "No circle centre could be resolved to a location, so this corridor "
-            "cannot be redrawn at that radius."
-        )
 
-    before = {
-        url
-        for (url,) in conn.execute(
-            "SELECT s.url FROM route_search_circles c JOIN searches s "
-            "ON s.id = c.search_id WHERE c.route_search_id = ?",
-            (route_search_id,),
-        )
-    }
-
-    # The circles are replaced wholesale; the search rows behind them are not,
-    # because save_plan reuses any search whose url already exists. A circle
-    # that survives therefore keeps its listings without anything special
-    # happening here.
-    conn.execute(
-        "DELETE FROM route_search_circles WHERE route_search_id = ?",
-        (route_search_id,),
-    )
-    conn.execute(
-        "UPDATE route_searches SET radius_km = ?, half_width_km = ?, plan_json = ? "
-        "WHERE id = ?",
-        (
-            plan.radius_km,
-            plan.half_width_km,
-            json.dumps(plan.as_dict(), ensure_ascii=False),
-            route_search_id,
-        ),
-    )
-
-    conflicts = route_store.attach_circles(
+    before = route_store.circle_urls(conn, route_search_id)
+    plan.conflicts = route_store.replace_circles(
         conn,
         route_search_id,
         plan,
-        name=name,
-        destination=destination,
-        campaign_id=campaign_id,
-        knowledge_set_id=knowledge_set_id,
+        name=asked["name"],
+        destination=asked["destination"],
+        campaign_id=asked["campaign_id"],
+        knowledge_set_id=asked["set_id"],
     )
-    plan.conflicts = conflicts
-
     after = {circle.url for circle in plan.circles}
 
-    # Detours were computed against the old shape. The route itself has not
-    # moved, so they are still right — but a listing that was beyond the old
-    # cutoff may be inside the new one, and those are marked for another look.
-    conn.execute(
-        "UPDATE listing_route_geo SET status = 'failed', detour_min = NULL "
-        "WHERE route_search_id = ? AND status = 'too_far'",
-        (route_search_id,),
-    )
-    conn.commit()
+    route_store.requeue(conn, route_search_id)
 
     return len(before & after), len(after - before), len(before - after), plan

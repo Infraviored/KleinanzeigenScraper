@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { translations } from '../i18n/translations';
 import type { Language, TranslationPath } from '../i18n/translations';
 
@@ -33,7 +33,13 @@ export function useTranslation() {
     setLang(lang === 'en' ? 'de' : 'en');
   };
 
-  const t = (
+  // Memoized on the language, because `t` ends up in effect dependency lists.
+  // Rebuilt every render, it made CorridorPlanner's debounced preview re-arm
+  // its timer on every render — and two background pollers re-render this app
+  // every 1.5 s — so an open corridor panel issued a fresh preview, and with it
+  // a process spawn and eight third-party requests, roughly every two seconds
+  // with nobody touching anything.
+  const t = useCallback((
     path: TranslationPath,
     replacements?: Record<string, string | number>
   ): string => {
@@ -70,7 +76,7 @@ export function useTranslation() {
     }
 
     return result;
-  };
+  }, [lang]);
 
   return { t, lang, setLang, toggleLanguage };
 }

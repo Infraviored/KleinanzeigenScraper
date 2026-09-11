@@ -30,7 +30,8 @@ if (process.env.NODE_ENV === 'production' && !process.env.JWT_SECRET) {
 const JWT_SECRET = process.env.JWT_SECRET || 'prismdeals_dev_secret_key_12345';
 
 // Database setup
-const dbPath = process.env.PRISMDEALS_DB || path.join(__dirname, '..', 'data', 'scraper.db');
+const { defaultPath } = require('./db/path');
+const dbPath = defaultPath();
 const db = new sqlite3.Database(dbPath);
 // WAL mode allows multiple concurrent readers/writers (parallel agent evals)
 db.run('PRAGMA journal_mode=WAL;');
@@ -553,6 +554,47 @@ app.get('/api/places/suggest', (req, res) => {
   });
 });
 
+/**
+ * Runs scraper/main.py and collects everything it said.
+ *
+ * Three route endpoints had grown their own copy of this: the venv path, the
+ * stdout/stderr accumulation, and a hand-rolled `replied` latch keeping the
+ * 'error' and 'close' handlers from both answering the request. A promise
+ * settles once, which is the invariant that latch was spelling out by hand.
+ *
+ * The 'error' handler matters more than it looks: an unhandled 'error' event on
+ * a ChildProcess ends the Node process, so a missing venv would have taken the
+ * whole API down rather than failing one request. Having it in one place means
+ * the next endpoint cannot forget it.
+ */
+function runPlanner(args, req = null) {
+  return new Promise((resolve, reject) => {
+    const python = spawn(
+      path.join(__dirname, '..', '.venv', 'bin', 'python3'),
+      [path.join(__dirname, '..', 'scraper', 'main.py'), ...args],
+      { env: { ...process.env } }
+    );
+
+    // A preview the browser has already given up on still spends its OSRM and
+    // Kleinanzeigen requests to the end. Dragging a slider abandons several in
+    // a row, so they are stopped when the request that wanted them goes away.
+    if (req) req.on('close', () => python.kill());
+
+    let stdout = '';
+    let stderr = '';
+    python.stdout.on('data', data => { stdout += data; });
+    python.stderr.on('data', data => { stderr += data; });
+    python.on('error', reject);
+    python.on('close', code => resolve({ code, stdout, stderr }));
+  });
+}
+
+/** The value the planner printed after `__NAME__:`, or null. */
+function readMarker(stdout, name) {
+  const found = stdout.match(new RegExp(`__${name}__:(.+)`));
+  return found ? found[1].trim() : null;
+}
+
 // API: Draw a corridor without building it.
 //
 // The corridor is a decision with a shape — how far off the road you will turn,
@@ -560,7 +602,7 @@ app.get('/api/places/suggest', (req, res) => {
 // seeing it is guesswork, so this answers the same question the real planner
 // answers and writes nothing: the route, the circles, their radii and where
 // each one snapped to.
-app.post('/api/route-searches/preview', (req, res) => {
+app.post('/api/route-searches/preview', async (req, res) => {
   const { base_url, origin, destination, radius_km, corridor_km } = req.body;
 
   if (!base_url || !origin || !destination) {
@@ -572,55 +614,38 @@ app.post('/api/route-searches/preview', (req, res) => {
     });
   }
 
-  const pythonExecutable = path.join(__dirname, '..', '.venv', 'bin', 'python3');
-  const args = [
-    path.join(__dirname, '..', 'scraper', 'main.py'),
-    '--mode', 'route-preview',
-    '--urls', base_url,
-    '--from', String(origin),
-    '--to', String(destination),
-  ];
+  const args = ['--mode', 'route-preview', '--urls', base_url,
+    '--from', String(origin), '--to', String(destination)];
   if (radius_km) args.push('--radius-km', String(radius_km));
   if (corridor_km) args.push('--corridor-km', String(corridor_km));
 
-  const python = spawn(pythonExecutable, args, { env: { ...process.env } });
-  let stdout = '';
-  let stderr = '';
-  let replied = false;
-  python.stdout.on('data', d => { stdout += d; });
-  python.stderr.on('data', d => { stderr += d; });
-
-  python.on('error', err => {
+  let result;
+  try {
+    result = await runPlanner(args, req);
+  } catch (err) {
     console.error('Could not start the route planner:', err);
-    if (replied) return;
-    replied = true;
-    res.status(500).json({ error: 'Could not start the route planner.' });
-  });
+    return res.status(500).json({ error: 'Could not start the route planner.' });
+  }
 
-  python.on('close', () => {
-    if (replied) return;
-    replied = true;
+  // The planner's own message names the place it could not resolve or the
+  // corridor it cannot cover, and that is what the person moving the sliders
+  // needs to read.
+  const refused = readMarker(result.stdout, 'ROUTE_PREVIEW_ERROR');
+  if (refused) return res.status(400).json({ error: refused });
 
-    // The planner's own message names the place it could not resolve or the
-    // corridor it cannot cover, and that is what the person adjusting the
-    // sliders needs to read.
-    const refused = stdout.match(/__ROUTE_PREVIEW_ERROR__:(.+)/);
-    if (refused) return res.status(400).json({ error: refused[1].trim() });
+  const drawn = readMarker(result.stdout, 'ROUTE_PREVIEW');
+  if (!drawn) {
+    console.error('Route preview produced nothing:', result.stdout, result.stderr);
+    const reason = (result.stderr.match(/ValueError: (.+)/) || [])[1];
+    return res.status(500).json({ error: reason || 'Could not plan this route.' });
+  }
 
-    const drawn = stdout.match(/__ROUTE_PREVIEW__:(.+)/);
-    if (!drawn) {
-      const reason = (stderr.match(/ValueError: (.+)/) || [])[1];
-      console.error('Route preview produced nothing:', stdout, stderr);
-      return res.status(500).json({ error: reason || 'Could not plan this route.' });
-    }
-
-    try {
-      res.json(JSON.parse(drawn[1]));
-    } catch (error) {
-      console.error('Route preview was not valid JSON:', error);
-      res.status(500).json({ error: 'Could not read the planned route.' });
-    }
-  });
+  try {
+    res.json(JSON.parse(drawn));
+  } catch (error) {
+    console.error('Route preview was not valid JSON:', error);
+    res.status(500).json({ error: 'Could not read the planned route.' });
+  }
 });
 
 // API: Redraw an existing corridor at a different radius or width.
@@ -630,58 +655,41 @@ app.post('/api/route-searches/preview', (req, res) => {
 // what it already found. Circles that survive the new plan keep their search
 // row and its listings; ones that fall out are detached from the route rather
 // than deleted.
-app.put('/api/route-searches/:id', (req, res) => {
+app.put('/api/route-searches/:id', async (req, res) => {
   const { radius_km, corridor_km } = req.body;
   if (!radius_km || !corridor_km) {
     return res.status(400).json({ error: 'Missing radius_km or corridor_km' });
   }
 
-  const pythonExecutable = path.join(__dirname, '..', '.venv', 'bin', 'python3');
-  const python = spawn(pythonExecutable, [
-    path.join(__dirname, '..', 'scraper', 'main.py'),
-    '--mode', 'route-replan',
-    '--route-id', String(req.params.id),
-    '--radius-km', String(radius_km),
-    '--corridor-km', String(corridor_km),
-  ], { env: { ...process.env } });
-
-  let stdout = '';
-  let stderr = '';
-  let replied = false;
-  python.stdout.on('data', d => { stdout += d; });
-  python.stderr.on('data', d => { stderr += d; });
-
-  python.on('error', err => {
+  let result;
+  try {
+    result = await runPlanner([
+      '--mode', 'route-replan',
+      '--route-id', String(req.params.id),
+      '--radius-km', String(radius_km),
+      '--corridor-km', String(corridor_km),
+    ]);
+  } catch (err) {
     console.error('Could not start the route planner:', err);
-    if (replied) return;
-    replied = true;
-    res.status(500).json({ error: 'Could not start the route planner.' });
-  });
+    return res.status(500).json({ error: 'Could not start the route planner.' });
+  }
 
-  python.on('close', async () => {
-    if (replied) return;
-    replied = true;
+  const refused = readMarker(result.stdout, 'ROUTE_REPLAN_ERROR');
+  if (refused) return res.status(400).json({ error: refused });
 
-    const refused = stdout.match(/__ROUTE_REPLAN_ERROR__:(.+)/);
-    if (refused) return res.status(400).json({ error: refused[1].trim() });
+  if (!readMarker(result.stdout, 'ROUTE_REPLANNED')) {
+    console.error('Route replan produced nothing:', result.stdout, result.stderr);
+    return res.status(500).json({ error: 'Could not redraw this corridor.' });
+  }
 
-    const done = stdout.match(/__ROUTE_REPLANNED__:(.+)/);
-    if (!done) {
-      console.error('Route replan produced nothing:', stdout, stderr);
-      return res.status(500).json({ error: 'Could not redraw this corridor.' });
-    }
-
-    try {
-      const route = await query('SELECT * FROM route_searches WHERE id = ?', [
-        req.params.id,
-      ]);
-      if (!route.length) return res.status(404).json({ error: 'No such route' });
-      res.json(await getRouteCorridorPayload(route[0]));
-    } catch (error) {
-      console.error('Corridor redrawn but could not be read back:', error);
-      res.status(500).json({ error: 'Corridor redrawn but could not be read back.' });
-    }
-  });
+  try {
+    const route = await get('SELECT * FROM route_searches WHERE id = ?', [req.params.id]);
+    if (!route) return res.status(404).json({ error: 'No such route' });
+    res.json(await getRouteCorridorPayload(route));
+  } catch (error) {
+    console.error('Corridor redrawn but could not be read back:', error);
+    res.status(500).json({ error: 'Corridor redrawn but could not be read back.' });
+  }
 });
 
 // API: Plan a route corridor and register its circles as ordinary searches.
@@ -797,6 +805,24 @@ app.post('/api/route-searches', (req, res) => {
   });
 });
 
+/**
+ * Every nth point of a polyline, both ends kept.
+ *
+ * A map draws the shape, not the kerb. The stored route holds ~4500 vertices —
+ * 101 KB of JSON — and the preview endpoint already thinned its copy to 400
+ * before sending it to the very same map component. Doing it in one path and
+ * not the other was an oversight, not a decision.
+ */
+function thin(points, limit = 400) {
+  if (!Array.isArray(points) || points.length <= limit) return points || [];
+  const step = points.length / limit;
+  const out = [];
+  for (let i = 0; i < limit; i++) out.push(points[Math.floor(i * step)]);
+  const last = points[points.length - 1];
+  if (out[out.length - 1] !== last) out.push(last);
+  return out;
+}
+
 async function getRouteCorridorPayload(route) {
   let plan = {};
   try {
@@ -882,7 +908,7 @@ async function getRouteCorridorPayload(route) {
       half_width_km: route.half_width_km,
       distance_km: plan.distance_km || null,
       duration_min: plan.duration_min || null,
-      polyline: plan.polyline || [],
+      polyline: thin(plan.polyline),
       circles: enrichedCircles,
     },
     listings: parsedListings,

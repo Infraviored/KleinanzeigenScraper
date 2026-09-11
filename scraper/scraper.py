@@ -1,5 +1,6 @@
 import os
 import json
+import db_schema
 import time
 import pickle
 import logging
@@ -308,11 +309,7 @@ def preview_url_listings_count(url):
 
 def harvest_descriptions(campaign_id=None):
     """Main wrapper function to harvest missing descriptions using direct requests GET"""
-    db_path = os.path.join(
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-        "data",
-        "scraper.db",
-    )
+    db_path = db_schema.default_path()
     if not os.path.exists(db_path):
         logger.warning(
             f"Database not found at {db_path}. Skipping detailed description harvest."
@@ -420,11 +417,7 @@ def harvest_descriptions(campaign_id=None):
 
 def update_all_descriptions_session(campaign_id=None):
     """Query SQLite database for all active listings, check and update using direct requests GET"""
-    db_path = os.path.join(
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-        "data",
-        "scraper.db",
-    )
+    db_path = db_schema.default_path()
     if not os.path.exists(db_path):
         logger.warning(
             f"Database not found at {db_path}. Skipping update all descriptions."

@@ -109,21 +109,11 @@ def run_route_mode(args):
             logger.error("route-preview needs --urls with one search URL")
             return
 
-        import json as _json
-
-        import route_search
-        import routing
-
-        client = routing.OsrmClient()
         try:
-            # Same resolution the real creation uses, so what is drawn is what
-            # would be built — a preview that plans a different route than the
-            # commit would is worse than no preview.
-            start = route_pipeline.resolve_place(args.origin)
-            end = route_pipeline.resolve_place(args.destination)
-            plan = route_search.plan(
+            plan = route_pipeline.plan_corridor(
                 args.urls[0],
-                client.route([start, end]),
+                args.origin,
+                args.destination,
                 radius_km=args.radius_km,
                 half_width_km=args.corridor_km,
             )
@@ -135,8 +125,7 @@ def run_route_mode(args):
         # The polyline is thousands of points and a map does not need them all;
         # what the caller is drawing is the shape, not the kerb.
         payload["polyline"] = _thin(payload["polyline"], 400)
-        payload.pop("segment_durations", None)
-        print("__ROUTE_PREVIEW__:" + _json.dumps(payload))
+        print("__ROUTE_PREVIEW__:" + json.dumps(payload))
         return
 
     conn = get_db_connection()
@@ -237,7 +226,7 @@ def main():
         default="both",
         help=(
             "Operation mode: scrape, process, both, preview, update-all, "
-            "route-preview, route-create, or route-annotate"
+            "route-preview, route-replan, route-create, or route-annotate"
         ),
     )
     parser.add_argument(

@@ -26,6 +26,10 @@ import sys
 import time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(ROOT, "scraper"))
+
+import db_schema  # noqa: E402
+
 EMAIL = "ui-shots@localhost"
 PASSWORD = "ui-shots-only"
 
@@ -259,7 +263,7 @@ def main():
     port = free_port()
     server = None
 
-    src_db = os.path.join(ROOT, "data", "scraper.db")
+    src_db = db_schema.default_path()
     wal_file = os.path.join(ROOT, "data", "scraper.db-wal")
     if os.path.exists(wal_file):
         try:

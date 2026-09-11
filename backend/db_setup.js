@@ -27,7 +27,7 @@ const sqlite3 = require('sqlite3').verbose();
 const { applySchema } = require('./db/schema');
 const { backup } = require('./db/backup');
 
-const DEFAULT_DB = path.join(__dirname, '..', 'data', 'scraper.db');
+const { defaultPath } = require('./db/path');
 
 function parseArgs(argv) {
   return {
@@ -38,7 +38,7 @@ function parseArgs(argv) {
 
 async function main(argv) {
   const { recreate, confirmed } = parseArgs(argv);
-  const dbPath = process.env.PRISMDEALS_DB || DEFAULT_DB;
+  const dbPath = defaultPath();
 
   fs.mkdirSync(path.dirname(dbPath), { recursive: true });
 

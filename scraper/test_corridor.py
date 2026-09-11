@@ -150,17 +150,6 @@ def test_postal_lookup_tolerates_whitespace():
 # --- turnarounds ---------------------------------------------------------
 
 
-def semicircle_turn(centre_lat, centre_lon, radius_deg, steps):
-    """A U-turn drawn the way a road network draws one: many gentle vertices."""
-    return [
-        (
-            centre_lat + radius_deg * math.cos(math.pi * (1 - step / steps)),
-            centre_lon + radius_deg * math.sin(math.pi * (1 - step / steps)),
-        )
-        for step in range(1, steps)
-    ]
-
-
 def straight_leg(lat, lon_from, lon_to, steps):
     return [
         (lat, lon_from + (lon_to - lon_from) * step / steps)
@@ -168,82 +157,66 @@ def straight_leg(lat, lon_from, lon_to, steps):
     ]
 
 
-def test_a_turnaround_drawn_as_a_loop_is_found():
-    """A driver turns via a roundabout or a slip road, and each of the ten points
-    that describes one deflects by twenty or thirty degrees. Looking for a sharp
-    corner finds the U-turn drawn as a single vertex and misses every turnaround
-    a real road offers."""
-    radius = 0.0009  # about 100 m
-    route = (
-        straight_leg(48.0, 10.0, 10.268, 20)
-        + semicircle_turn(48.0 - radius, 10.268, radius, 16)
-        + straight_leg(48.0 - 2 * radius, 10.268, 10.0, 20)
-    )
+def test_a_route_that_never_doubles_back_has_no_turnarounds():
+    """The case that matters most, because it is nearly every route.
 
-    sharpest = max(
-        _deflection(route[i - 1], route[i], route[i + 1])
-        for i in range(1, len(route) - 1)
-    )
-    assert sharpest < corridor.REVERSAL_DEGREES, (
-        "the fixture must be a gentle loop, not a single sharp corner"
-    )
-
-    turns = corridor.reversal_points(route)
-    assert len(turns) == 1
-    assert turns[0] == pytest.approx(20, abs=1.5)
-
-
-def _deflection(previous, here, following):
-    lat_scale, lon_scale = corridor._km_per_degree(here[0])
-    incoming = (
-        (here[1] - previous[1]) * lon_scale,
-        (here[0] - previous[0]) * lat_scale,
-    )
-    outgoing = (
-        (following[1] - here[1]) * lon_scale,
-        (following[0] - here[0]) * lat_scale,
-    )
-    first, second = math.hypot(*incoming), math.hypot(*outgoing)
-    if not first or not second:
-        return 0.0
-    cosine = (incoming[0] * outgoing[0] + incoming[1] * outgoing[1]) / (first * second)
-    return math.degrees(math.acos(max(-1.0, min(1.0, cosine))))
-
-
-def test_a_straight_route_has_no_turnarounds():
-    assert corridor.reversal_points(straight_leg(48.0, 10.0, 10.5, 60)) == []
+    Its predecessor, `reversal_points`, asked whether the direction of travel
+    swings round, and on a real road the answer is yes constantly — roundabouts,
+    slip roads, a switchback out of a valley. Landsberg to Konstanz has twelve
+    such swings and never doubles back once. Handing those to a router as
+    waypoints pinned the journey to the road already chosen, and charged
+    Friedrichshafen 140 minutes for a fifteen-minute stop.
+    """
+    assert corridor.turnaround_points(straight_leg(48.0, 10.0, 10.5, 60)) == []
 
 
 def test_a_winding_road_is_not_a_turnaround():
-    """A valley road also swings 120 degrees — over kilometres, while going
-    somewhere. The window is what tells the two apart."""
+    """A valley road swings through 120 degrees too — while going somewhere."""
     winding = [
         (48.0 + 0.05 * math.sin(math.pi * step / 60), 10.0 + step * 0.008)
         for step in range(61)
     ]
-    assert corridor.reversal_points(winding) == []
+    assert corridor.turnaround_points(winding) == []
 
 
-def test_a_turnaround_outside_the_range_asked_about_is_not_reported():
-    radius = 0.0009
-    route = (
-        straight_leg(48.0, 10.0, 10.268, 20)
-        + semicircle_turn(48.0 - radius, 10.268, radius, 16)
-        + straight_leg(48.0 - 2 * radius, 10.268, 10.0, 20)
-    )
-
-    assert corridor.reversal_points(route, from_km=25, to_km=40) == []
-    assert corridor.reversal_points(route, from_km=10, to_km=30)
-
-
-def test_a_coarsely_drawn_turnaround_is_still_found():
-    """A window smaller than the gap between two vertices would look at nothing.
-    Routes are not always drawn finely: the segment straight after a point counts
-    however long it is, and only what follows that is subject to the window."""
+def test_a_route_that_comes_back_on_itself_is_a_turnaround():
+    """Out twenty kilometres and back: far apart along the route, close on the
+    ground. That is the question worth asking, and a roundabout fails it — two
+    hundred metres later the route is two hundred metres away, not fifteen
+    kilometres of driving from itself."""
     out = [(48.0, 10.0 + step * 0.0268) for step in range(11)]  # 2 km apart
     there_and_back = out + list(reversed(out))[1:]
 
-    turns = corridor.reversal_points(there_and_back)
+    turns = corridor.turnaround_points(there_and_back)
 
     assert len(turns) == 1
-    assert turns[0] == pytest.approx(20, abs=2)
+    assert turns[0] == pytest.approx(20, abs=2), "the apex, not the midpoint"
+
+
+def test_the_turnaround_is_the_apex_of_the_loop():
+    """A waypoint short of the turn stops the comparison journey short too, and
+    quietly under-charges every listing near it."""
+    out = [(48.0, 10.0 + step * 0.0134) for step in range(21)]  # 1 km apart
+    there_and_back = out + list(reversed(out))[1:]
+
+    turns = corridor.turnaround_points(there_and_back)
+
+    assert len(turns) == 1
+    assert turns[0] == pytest.approx(corridor.length_km(there_and_back) / 2, abs=1.5)
+
+
+def test_sampling_the_route_walks_it_once():
+    """The grid is built from one pass rather than a point_at_km call per
+    sample, each of which re-walked all 4500 vertices. 0.2 s a call became
+    0.007 s, and five seconds became the same, on a route that doubles back."""
+    route = straight_leg(48.0, 10.0, 11.0, 400)
+    samples = corridor._sample_route(route, sample_km=5.0)
+    total = corridor.length_km(route)
+
+    assert samples[0][0] == 0.0
+    assert samples[-1][0] == pytest.approx(total)
+    assert samples[-1][1] == route[-1]
+    for (km_a, _), (km_b, _) in zip(samples, samples[1:-1]):
+        assert km_b - km_a == pytest.approx(5.0)
+    for km, point in samples:
+        assert point == pytest.approx(corridor.point_at_km(route, km), abs=1e-6)

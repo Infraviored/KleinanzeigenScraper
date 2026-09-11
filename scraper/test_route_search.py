@@ -268,7 +268,6 @@ def straight_line_route(points):
         polyline=list(points),
         duration_s=sum(steps),
         distance_m=sum(steps) / 60.0 * 1000.0,
-        segment_durations=steps,
     )
 
 

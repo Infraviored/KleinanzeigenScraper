@@ -221,10 +221,6 @@ class RoutePlan:
             "radius_km": self.radius_km,
             "half_width_km": self.half_width_km,
             "polyline": [[lat, lon] for lat, lon in self.route.polyline],
-            # Kept so a stored route can price a stretch of itself without
-            # asking the routing service again — and without re-routing, which
-            # would answer with a shortcut the driver is not taking.
-            "segment_durations": self.route.segment_durations,
             "circles": [circle.as_dict() for circle in self.circles],
             "unresolved": self.unresolved,
         }

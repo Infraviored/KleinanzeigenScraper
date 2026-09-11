@@ -1,12 +1,21 @@
 #!/usr/bin/env python3
 import sqlite3
 import os
+import sys
+
+sys.path.insert(
+    0,
+    os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scraper"
+    ),
+)
+import db_schema  # noqa: E402
 import json
 
 
 def main():
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    db_path = os.path.join(base_dir, "data", "scraper.db")
+    db_path = db_schema.default_path()
     progress_path = os.path.join(base_dir, "data", "scraper_progress.json")
     log_path = os.path.join(base_dir, "data", "scraper.log")
 

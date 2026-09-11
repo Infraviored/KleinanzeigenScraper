@@ -196,13 +196,12 @@ def test_every_runtime_obeys_the_same_database_variable(fresh_db):
     A variable that some processes obey and others quietly do not is worse than
     one nobody obeys: it reads as a safety measure while being none.
     """
+    # Ask the real module, not a copy of what it is supposed to say. Spelling
+    # the rule out again here would make this test pass by construction: rename
+    # the variable in server.js and it would still be green while the two
+    # runtimes disagreed — the exact failure the docstring above describes.
     node = subprocess.run(
-        [
-            "node",
-            "-e",
-            "console.log(process.env.PRISMDEALS_DB || "
-            "require('path').join(__dirname,'..','data','scraper.db'))",
-        ],
+        ["node", "-e", "console.log(require('./db/path').defaultPath())"],
         cwd=os.path.join(ROOT, "backend"),
         env={**os.environ, "PRISMDEALS_DB": fresh_db},
         capture_output=True,
@@ -222,3 +221,47 @@ def test_every_runtime_obeys_the_same_database_variable(fresh_db):
 
     assert node.stdout.strip() == fresh_db, node.stderr
     assert python.stdout.strip() == fresh_db, python.stderr
+
+
+def test_the_database_path_is_written_down_once_per_runtime():
+    """Two of six Python entry points obeyed PRISMDEALS_DB, and that was worse
+    than none obeying it.
+
+    `main.py` imports `harvest_descriptions` from `scraper.py`, which resolved
+    its own path — so one process, in one run, did its route work in the
+    database it was pointed at and its description harvest in production. The
+    variable read as a safety measure while being none.
+
+    A rule that can be broken silently needs a check that breaks loudly.
+    """
+    literals = []
+    for directory, names, filenames in os.walk(ROOT):
+        names[:] = [
+            n
+            for n in names
+            if n not in {".git", "node_modules", "venv", ".wt", "data_copy", "dist"}
+            and not n.startswith("venv")
+        ]
+        for filename in filenames:
+            if not filename.endswith((".py", ".js")):
+                continue
+            relative = os.path.relpath(os.path.join(directory, filename), ROOT)
+            # The two places that are allowed to say it, one per runtime.
+            if relative in (
+                "scraper/db_schema.py",
+                "backend/db/path.js",
+                "scraper/test_db_schema.py",  # this file names it to look for it
+            ):
+                continue
+            text = open(os.path.join(directory, filename), encoding="utf-8").read()
+            for number, line in enumerate(text.splitlines(), 1):
+                if '"scraper.db"' in line or "'scraper.db'" in line:
+                    if line.lstrip().startswith(("#", "*", "//")):
+                        continue  # prose about the history, not a path
+                    literals.append(f"{relative}:{number}")
+
+    assert literals == [], (
+        "These resolve the database path themselves instead of asking "
+        "db_schema.default_path() or backend/db/path.js, which is how one "
+        f"process came to read two different databases: {literals}"
+    )

@@ -67,10 +67,11 @@ export default function RouteResultsView({
   const [error, setError] = useState<string | null>(null);
 
   // Filters and sorting
-  const [editingCorridor, setEditingCorridor] = useState(false);
+  // Either the panel is closed, or it is open with a draft — one thing, not
+  // three. Held as a nullable draft so the placeholder defaults that were
+  // overwritten before they could ever render are gone.
+  const [draft, setDraft] = useState<{ radius: number; corridor: number } | null>(null);
   const [redrawing, setRedrawing] = useState(false);
-  const [draftRadiusKm, setDraftRadiusKm] = useState(30);
-  const [draftCorridorKm, setDraftCorridorKm] = useState(15);
   const [selectedDetourMax, setSelectedDetourMax] = useState<'all' | '15' | '30' | '60'>('all');
   const [sortBy, setSortBy] = useState<'detour' | 'price'>('detour');
   const [searchQuery, setSearchQuery] = useState('');
@@ -107,6 +108,34 @@ export default function RouteResultsView({
       fetchRouteData();
     }
   }, [isScraping, fetchRouteData]);
+
+  const redrawCorridor = useCallback(async () => {
+    if (!draft || !routeData) return;
+    setRedrawing(true);
+    try {
+      const res = await fetch(`/api/route-searches/${routeData.route.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          radius_km: draft.radius,
+          corridor_km: draft.corridor,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || 'network_error');
+        return;
+      }
+      // The endpoint answers with the redrawn corridor, so the results behind
+      // this panel are already the new ones.
+      setRouteData(data);
+      setDraft(null);
+    } catch {
+      setError('network_error');
+    } finally {
+      setRedrawing(false);
+    }
+  }, [draft, routeData]);
 
   // Parse price string e.g. "70 €", "VB", "Zu verschenken" to a sortable number
   const parsePrice = (priceStr: string): number => {
@@ -249,11 +278,12 @@ export default function RouteResultsView({
             <Button
               variant="secondary"
               size="sm"
-              onClick={() => {
-                setDraftRadiusKm(routeData.route.radius_km);
-                setDraftCorridorKm(routeData.route.half_width_km);
-                setEditingCorridor(true);
-              }}
+              onClick={() =>
+                setDraft({
+                  radius: routeData.route.radius_km,
+                  corridor: routeData.route.half_width_km,
+                })
+              }
               className="py-2.5 px-4 font-bold flex items-center gap-2"
             >
               <SlidersHorizontal className="w-4 h-4" />
@@ -274,7 +304,7 @@ export default function RouteResultsView({
         </div>
       </Card>
 
-      {editingCorridor && (
+      {draft && (
         <Card className="p-5 space-y-4 animate-fadeIn">
           <div className="space-y-1">
             <h3 className="text-lg font-bold text-text-primary">{t('corridor.editSettings')}</h3>
@@ -286,39 +316,14 @@ export default function RouteResultsView({
             destination={route.destination}
             originName={route.origin}
             destinationName={route.destination}
-            radiusKm={draftRadiusKm}
-            corridorKm={draftCorridorKm}
-            onRadiusChange={setDraftRadiusKm}
-            onCorridorChange={setDraftCorridorKm}
+            radiusKm={draft.radius}
+            corridorKm={draft.corridor}
+            onRadiusChange={radius => setDraft(d => (d ? { ...d, radius } : d))}
+            onCorridorChange={corridor => setDraft(d => (d ? { ...d, corridor } : d))}
             committing={redrawing}
             commitLabel={t('corridor.commitChange')}
-            onCancel={() => setEditingCorridor(false)}
-            onCommit={async () => {
-              setRedrawing(true);
-              try {
-                const res = await fetch(`/api/route-searches/${route.id}`, {
-                  method: 'PUT',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    radius_km: draftRadiusKm,
-                    corridor_km: draftCorridorKm,
-                  }),
-                });
-                const data = await res.json();
-                if (!res.ok) {
-                  setError(data.error || 'network_error');
-                  return;
-                }
-                // The endpoint answers with the redrawn corridor, so the
-                // results behind this panel are already the new ones.
-                setRouteData(data);
-                setEditingCorridor(false);
-              } catch {
-                setError('network_error');
-              } finally {
-                setRedrawing(false);
-              }
-            }}
+            onCancel={() => setDraft(null)}
+            onCommit={redrawCorridor}
           />
         </Card>
       )}

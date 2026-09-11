@@ -42,72 +42,18 @@ class RoutingError(RuntimeError):
 class Route:
     """A driven route: its shape, and what it costs to drive.
 
-    `segment_durations` holds the driving time of each step of the polyline, so
-    the cost of any stretch of the route can be read off rather than re-routed.
-    That distinction matters more than it sounds: asking a routing service for
-    the time between two points on a route gives the *best* way between them,
-    which is not the way the driver is going. On a there-and-back trip two
-    anchors fifteen kilometres apart along the route can be neighbours on the
-    same road, and the "direct" time then skips the entire turnaround.
+    It used to carry a time profile as well — elapsed driving time at every
+    vertex, so the cost of any stretch could be read off rather than re-routed.
+    That existed to serve the bracketed detour calculation, which measured a
+    listing against fifteen kilometres of route either side of it. That
+    calculation over-reported by up to nine times and was removed, and with it
+    the only caller of the profile.
     """
 
-    def __init__(self, polyline, duration_s, distance_m, segment_durations=None):
+    def __init__(self, polyline, duration_s, distance_m):
         self.polyline = polyline
         self.duration_s = duration_s
         self.distance_m = distance_m
-        self.segment_durations = segment_durations
-        self._cumulative_km = None
-        self._cumulative_s = None
-
-    def _build_profile(self):
-        """Arc length and elapsed driving time at each vertex."""
-        import corridor
-
-        self._cumulative_km = corridor.cumulative_km(self.polyline)
-
-        durations = self.segment_durations
-        if not durations or len(durations) != len(self.polyline) - 1:
-            # No per-segment times: spread the total evenly by distance. Coarser
-            # than the real thing — a motorway kilometre is not a town kilometre
-            # — but it still measures time along the route rather than along a
-            # shortcut the driver will not take.
-            total_km = self._cumulative_km[-1] or 1.0
-            self._cumulative_s = [
-                km / total_km * self.duration_s for km in self._cumulative_km
-            ]
-            return
-
-        elapsed, running = [0.0], 0.0
-        for step in durations:
-            running += step
-            elapsed.append(running)
-        self._cumulative_s = elapsed
-
-    def duration_at_km(self, distance_km):
-        """Elapsed driving time at a point that far along the route."""
-        if self._cumulative_km is None:
-            self._build_profile()
-
-        totals, elapsed = self._cumulative_km, self._cumulative_s
-        if distance_km <= 0:
-            return elapsed[0]
-        if distance_km >= totals[-1]:
-            return elapsed[-1]
-
-        for index in range(1, len(totals)):
-            if totals[index] >= distance_km:
-                span = totals[index] - totals[index - 1]
-                if span == 0:
-                    return elapsed[index]
-                fraction = (distance_km - totals[index - 1]) / span
-                return elapsed[index - 1] + fraction * (
-                    elapsed[index] - elapsed[index - 1]
-                )
-        return elapsed[-1]
-
-    def duration_between_km(self, from_km, to_km):
-        """Driving time along this route between two arc lengths."""
-        return abs(self.duration_at_km(to_km) - self.duration_at_km(from_km))
 
     @property
     def duration_min(self):
@@ -173,7 +119,6 @@ class OsrmClient:
         url = (
             f"{self.base_url}/route/v1/{self.profile}/{_waypoints(points)}"
             f"?overview={'full' if geometry else 'false'}&geometries=geojson"
-            + ("&annotations=duration" if geometry else "")
         )
         payload = self._fetch_json(url)
 
@@ -185,18 +130,10 @@ class OsrmClient:
         first = payload["routes"][0]
         coordinates = (first.get("geometry") or {}).get("coordinates") or []
 
-        # Per-segment durations, concatenated across legs, so the cost of any
-        # stretch of the route can be read off instead of re-routed.
-        segment_durations = []
-        for leg in first.get("legs") or []:
-            annotation = leg.get("annotation") or {}
-            segment_durations.extend(annotation.get("duration") or [])
-
         result = Route(
             polyline=[(lat, lon) for lon, lat in coordinates] or list(points),
             duration_s=first["duration"],
             distance_m=first["distance"],
-            segment_durations=segment_durations or None,
         )
         self._cache[key] = result
         return result
@@ -205,7 +142,7 @@ class OsrmClient:
         return self.route(points, geometry=False).duration_s
 
 
-def detour_minutes(client, route, point):
+def detour_minutes(client, route, point, turns=None):
     """Extra driving time to collect something at `point` while driving `route`.
 
         detour = drive(the route, with the listing inserted) - drive(the route)
@@ -248,7 +185,11 @@ def detour_minutes(client, route, point):
         return 2 * there / 60.0
 
     at_km, _ = corridor.project_onto_route(point, polyline)
-    turns = corridor.turnaround_points(polyline)
+    # Depends on the route, not on the listing. annotate_detours computes it
+    # once and passes it in; recomputed per listing it cost twelve seconds a
+    # run on an ordinary corridor, and five minutes on one that doubles back.
+    if turns is None:
+        turns = corridor.turnaround_points(polyline)
 
     waypoints = [polyline[0]]
     waypoints += [corridor.point_at_km(polyline, km) for km in turns if km < at_km]
@@ -271,6 +212,7 @@ def annotate_detours(client, route, listings, max_offroute_km=None):
     import corridor
 
     polyline = route.polyline
+    turns = corridor.turnaround_points(polyline)
     annotated = []
     for listing in listings:
         coords = listing.get("coordinates")
@@ -286,7 +228,7 @@ def annotate_detours(client, route, listings, max_offroute_km=None):
             continue
 
         try:
-            minutes = detour_minutes(client, route, coords)
+            minutes = detour_minutes(client, route, coords, turns=turns)
         except (RoutingError, KeyError, ValueError) as exc:
             # A failed attempt is not an answer. Saying so lets the caller try
             # again rather than filing a routing outage as a settled result.

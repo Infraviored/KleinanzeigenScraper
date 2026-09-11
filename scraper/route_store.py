@@ -262,7 +262,6 @@ def route(conn, route_search_id):
         polyline=points,
         duration_s=(plan.get("duration_min") or 0) * 60.0,
         distance_m=(plan.get("distance_km") or 0) * 1000.0,
-        segment_durations=plan.get("segment_durations"),
     )
 
 
@@ -353,3 +352,100 @@ def pending_geo(conn, route_search_id):
         for listing in listings_for_route(conn, route_search_id)
         if known.get(listing["id"], {}).get("status", FAILED) in RETRYABLE
     ]
+
+
+def definition(conn, route_search_id):
+    """What the route was asked for: url, both ends, and its bindings.
+
+    Companion to `get_plan`, which returns the drawn shape. This returns the
+    question that produced it, so a corridor can be redrawn without the caller
+    knowing the column layout.
+    """
+    row = conn.execute(
+        "SELECT base_url, origin, destination, name, campaign_id, knowledge_set_id "
+        "FROM route_searches WHERE id = ?",
+        (route_search_id,),
+    ).fetchone()
+    if row is None:
+        return None
+    keys = ("base_url", "origin", "destination", "name", "campaign_id", "set_id")
+    return dict(zip(keys, row))
+
+
+def replace_circles(
+    conn,
+    route_search_id,
+    plan,
+    name=None,
+    destination=None,
+    campaign_id=None,
+    knowledge_set_id=None,
+):
+    """Swaps a route's circles for a freshly drawn plan's, in one step.
+
+    The search rows behind the circles are deliberately not touched: attach_circles
+    reuses any search whose url already exists, so a circle that survives the new
+    plan keeps everything already scraped through it. That is what makes widening
+    a corridor cheap instead of a fresh start.
+
+    It holds only while the radius stays put. The radius is part of the search
+    url, so changing it rewrites every circle's url and nothing is recognised as
+    the same search — measured: changing a corridor's radius reported "0 kept,
+    5 added, 7 removed" and left the previous searches, with their listings,
+    detached from the route. Widening the corridor at the same radius is the
+    cheap operation; changing the radius is closer to a fresh start, and the
+    caller should expect to re-scrape.
+    """
+    conn.execute(
+        "DELETE FROM route_search_circles WHERE route_search_id = ?",
+        (route_search_id,),
+    )
+    conn.execute(
+        "UPDATE route_searches SET radius_km = ?, half_width_km = ?, plan_json = ? "
+        "WHERE id = ?",
+        (
+            plan.radius_km,
+            plan.half_width_km,
+            json.dumps(plan.as_dict(), ensure_ascii=False),
+            route_search_id,
+        ),
+    )
+    conflicts = attach_circles(
+        conn,
+        route_search_id,
+        plan,
+        name=name,
+        destination=destination,
+        campaign_id=campaign_id,
+        knowledge_set_id=knowledge_set_id,
+    )
+    conn.commit()
+    return conflicts
+
+
+def circle_urls(conn, route_search_id):
+    """The search urls this route currently covers."""
+    return {
+        url
+        for (url,) in conn.execute(
+            "SELECT s.url FROM route_search_circles c JOIN searches s "
+            "ON s.id = c.search_id WHERE c.route_search_id = ?",
+            (route_search_id,),
+        )
+    }
+
+
+def requeue(conn, route_search_id, from_status=TOO_FAR):
+    """Puts settled rows back in the queue, for when the question changed.
+
+    A listing marked too_far was judged against the corridor as it was; redraw
+    it and that judgement is stale. Rows already routed keep their detour — the
+    route has not moved, only which listings count as being on it.
+    """
+    cursor = conn.execute(
+        "UPDATE listing_route_geo SET status = ?, detour_min = NULL "
+        "WHERE route_search_id = ? AND status = ?",
+        (FAILED, route_search_id, from_status),
+    )
+    conn.commit()
+    return cursor.rowcount

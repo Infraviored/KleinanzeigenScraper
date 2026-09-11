@@ -31,8 +31,6 @@ type Props = {
   onCancel?: () => void
 }
 
-const RADIUS_STEPS = [20, 25, 30, 35, 40, 45, 50, 60]
-
 /**
  * Draws a corridor before it is built.
  *
@@ -88,7 +86,12 @@ export default function CorridorPlanner({
     } finally {
       if (mine === requestId.current) setLoading(false)
     }
-  }, [baseUrl, origin, destination, radiusKm, corridorKm, t])
+    // Deliberately not keyed on `baseUrl`: the planner uses it only to stamp
+    // each circle's url once the geometry is settled, so it cannot change what
+    // is drawn — and keying on it meant a process spawn and eight third-party
+    // requests on every keystroke in the search-URL field.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [origin, destination, radiusKm, corridorKm, t])
 
   // Each redraw is a routing request, so the sliders settle before asking.
   useEffect(() => {
@@ -146,12 +149,12 @@ export default function CorridorPlanner({
           <input
             id="planner-radius"
             type="range"
-            min={0}
-            max={RADIUS_STEPS.length - 1}
-            step={1}
-            value={Math.max(0, RADIUS_STEPS.indexOf(radiusKm))}
+            min={20}
+            max={60}
+            step={5}
+            value={radiusKm}
             onChange={e => {
-              const next = RADIUS_STEPS[Number(e.target.value)]
+              const next = Number(e.target.value)
               onRadiusChange(next)
               // A corridor at least as wide as the circles cannot be covered at
               // any spacing, so the width follows the radius down.

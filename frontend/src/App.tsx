@@ -1796,10 +1796,12 @@ export default function App() {
                         />
                       </div>
 
-                      {/* The corridor is only a question once both ends are
-                          known. Until then the sliders would be adjusting a
-                          shape nobody can see. */}
-                      {routeFrom && routeTo ? (
+                      {/* The corridor is only a question once the search and
+                          both ends are known. The guard has to cover all three:
+                          rendering the planner without a URL showed "pick where
+                          you set off" to someone who already had, while the
+                          message that names the real blocker was unreachable. */}
+                      {routeFrom && routeTo && newTargetUrl && isValidKleinanzeigenUrl(newTargetUrl) ? (
                         <CorridorPlanner
                           baseUrl={newTargetUrl}
                           origin={routeFrom.postal_code}

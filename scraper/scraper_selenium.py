@@ -4,6 +4,7 @@
 # and interactive features (like user outreach/messaging) inside the user account in future stages.
 # Do not delete this file.
 import os
+import db_schema
 import json
 import time
 import pickle
@@ -51,11 +52,7 @@ def update_progress(phase, current, total, status):
 
 def harvest_missing_descriptions(driver, campaign_id=None):
     """Query SQLite database for listings missing detailed descriptions, and visit them sequentially"""
-    db_path = os.path.join(
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-        "data",
-        "scraper.db",
-    )
+    db_path = db_schema.default_path()
     if not os.path.exists(db_path):
         logger.warning(
             f"Database not found at {db_path}. Skipping detailed description harvest."
@@ -743,11 +740,7 @@ def harvest_descriptions(campaign_id=None):
 
 def update_all_descriptions(driver, campaign_id=None):
     """Query SQLite database for all listings under active searches, visit them, and update if description changed"""
-    db_path = os.path.join(
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-        "data",
-        "scraper.db",
-    )
+    db_path = db_schema.default_path()
     if not os.path.exists(db_path):
         logger.warning(
             f"Database not found at {db_path}. Skipping update all descriptions."
