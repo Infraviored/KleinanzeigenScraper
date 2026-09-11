@@ -103,7 +103,7 @@ export default function CorridorPlanner({
 
   return (
     <div className="space-y-4">
-      <div className="rounded-2xl overflow-hidden border border-border-subtle bg-bg-input/40">
+      <div className="rounded-2xl overflow-hidden border border-border-subtle bg-bg-input/40 h-[260px] sm:h-[320px]">
         {preview ? (
           <RouteCorridorMap
             polyline={preview.polyline}
@@ -113,9 +113,10 @@ export default function CorridorPlanner({
             onSelectListing={() => {}}
             originName={originName}
             destinationName={destinationName}
+            className="min-h-[260px]"
           />
         ) : (
-          <div className="h-[320px] flex items-center justify-center text-center px-6">
+          <div className="h-full flex items-center justify-center text-center px-6">
             <p className="text-sm text-text-muted">
               {error ? error : loading ? t('corridor.drawing') : t('corridor.awaitingEnds')}
             </p>
