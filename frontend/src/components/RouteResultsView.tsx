@@ -278,14 +278,14 @@ export default function RouteResultsView({
           </div>
 
           {/* Action CTAs */}
-          <div className="flex flex-wrap items-center gap-2 sm:gap-3 shrink-0">
+          <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 sm:gap-3 shrink-0">
             <Button
               id="btn-corridor-scrape"
               variant="action-emerald"
               size="sm"
               onClick={onStartScrape}
               disabled={isScraping}
-              className="py-2.5 px-3.5 sm:px-4 font-bold flex items-center gap-2 min-h-[44px]"
+              className="py-2.5 px-3 font-bold flex items-center justify-center gap-2 min-h-[44px]"
             >
               {isScraping ? (
                 <>
@@ -309,7 +309,7 @@ export default function RouteResultsView({
                   corridor: routeData.route.half_width_km,
                 })
               }
-              className="py-2.5 px-3.5 sm:px-4 font-bold flex items-center gap-2 min-h-[44px]"
+              className="py-2.5 px-3 font-bold flex items-center justify-center gap-2 min-h-[44px]"
             >
               <SlidersHorizontal className="w-4 h-4" />
               <span>{t('corridor.editSettings')}</span>
@@ -320,7 +320,7 @@ export default function RouteResultsView({
               variant="action-indigo"
               size="sm"
               onClick={onEvaluateWithAi}
-              className="py-2.5 px-3.5 sm:px-4 font-bold flex items-center gap-2 min-h-[44px]"
+              className="col-span-2 sm:col-span-1 py-2.5 px-3 font-bold flex items-center justify-center gap-2 min-h-[44px]"
             >
               <Sparkles className="w-4 h-4" />
               <span>{t('routeResults.evaluateWithAi')}</span>
@@ -465,66 +465,68 @@ export default function RouteResultsView({
       ) : (
         /* Populated Results View */
         <div className="space-y-4">
-          {/* Filter & Sorting Controls */}
-          <Card className="p-3 sm:p-3.5 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-bg-surface border-border-subtle">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-2xs text-text-muted font-bold uppercase tracking-wider flex items-center gap-1 mr-1">
-                <Filter className="w-3 h-3 text-text-muted" />
-                {t('routeResults.detourFilterLabel')}:
-              </span>
+          {/* Filter & Sorting Controls: on desktop, or on mobile when in list tab */}
+          {(isDesktop || mobileTab === 'list') && (
+            <Card className="p-3 sm:p-3.5 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-bg-surface border-border-subtle">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-2xs text-text-muted font-bold uppercase tracking-wider flex items-center gap-1 mr-1">
+                  <Filter className="w-3 h-3 text-text-muted" />
+                  {t('routeResults.detourFilterLabel')}:
+                </span>
 
-              {(['all', '15', '30', '60'] as const).map((choice) => {
-                const label =
-                  choice === 'all'
-                    ? t('routeResults.allDetours')
-                    : choice === '15'
-                    ? t('routeResults.within15Min')
-                    : choice === '30'
-                    ? t('routeResults.within30Min')
-                    : t('routeResults.within60Min');
+                {(['all', '15', '30', '60'] as const).map((choice) => {
+                  const label =
+                    choice === 'all'
+                      ? t('routeResults.allDetours')
+                      : choice === '15'
+                      ? t('routeResults.within15Min')
+                      : choice === '30'
+                      ? t('routeResults.within30Min')
+                      : t('routeResults.within60Min');
 
-                const active = selectedDetourMax === choice;
-                return (
-                  <button
-                    key={choice}
-                    type="button"
-                    onClick={() => setSelectedDetourMax(choice)}
-                    className={`min-h-[36px] px-3 py-1 rounded-lg text-2xs font-semibold transition-colors flex items-center justify-center ${
-                      active
-                        ? 'bg-brand-accent/20 text-brand-accent border border-brand-accent/40 font-bold'
-                        : 'bg-bg-input text-text-muted hover:text-text-secondary border border-border-subtle'
-                    }`}
-                  >
-                    {label}
-                  </button>
-                );
-              })}
-            </div>
-
-            <div className="flex flex-col sm:flex-row items-center gap-2">
-              <div className="relative w-full sm:w-56">
-                <Input
-                  type="text"
-                  placeholder={t('routeResults.searchPlaceholder')}
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="text-xs py-1.5 bg-bg-input border-border-subtle"
-                />
+                  const active = selectedDetourMax === choice;
+                  return (
+                    <button
+                      key={choice}
+                      type="button"
+                      onClick={() => setSelectedDetourMax(choice)}
+                      className={`min-h-[36px] px-3 py-1 rounded-lg text-2xs font-semibold transition-colors flex items-center justify-center ${
+                        active
+                          ? 'bg-brand-accent/20 text-brand-accent border border-brand-accent/40 font-bold'
+                          : 'bg-bg-input text-text-muted hover:text-text-secondary border border-border-subtle'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
               </div>
 
-              <div className="w-full sm:w-44">
-                <Select
-                  value={sortBy}
-                  onChange={(val) => setSortBy(val as 'detour' | 'price')}
-                  options={[
-                    { value: 'detour', label: t('routeResults.sortByDetour') },
-                    { value: 'price', label: t('routeResults.sortByPrice') },
-                  ]}
-                  className="text-xs py-1.5 bg-bg-input border-border-subtle"
-                />
+              <div className="flex flex-col sm:flex-row items-center gap-2">
+                <div className="relative w-full sm:w-56">
+                  <Input
+                    type="text"
+                    placeholder={t('routeResults.searchPlaceholder')}
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="text-xs py-1.5 bg-bg-input border-border-subtle"
+                  />
+                </div>
+
+                <div className="w-full sm:w-44">
+                  <Select
+                    value={sortBy}
+                    onChange={(val) => setSortBy(val as 'detour' | 'price')}
+                    options={[
+                      { value: 'detour', label: t('routeResults.sortByDetour') },
+                      { value: 'price', label: t('routeResults.sortByPrice') },
+                    ]}
+                    className="text-xs py-1.5 bg-bg-input border-border-subtle"
+                  />
+                </div>
               </div>
-            </div>
-          </Card>
+            </Card>
+          )}
 
           {/* Interactive Split Layout: Map & Listings List */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
