@@ -423,6 +423,37 @@ def replace_circles(
     return conflicts
 
 
+def retire_searches(conn, urls, keep_route_id=None):
+    """Switches off searches that no route covers any more.
+
+    Deleting the circle rows was not enough: the search behind a dropped circle
+    kept `enabled = 1` and its campaign, so the scraper went on fetching it every
+    run and its listings went on arriving. Narrowing a corridor to cut the load
+    against a site that rate-limits therefore cut nothing, and repeated redraws
+    piled up searches nobody had asked for.
+
+    Disabled rather than deleted: the listings already found through it are real
+    and stay reachable in the campaign. Only searches no other route still uses
+    are touched.
+    """
+    retired = 0
+    for url in urls:
+        row = conn.execute("SELECT id FROM searches WHERE url = ?", (url,)).fetchone()
+        if row is None:
+            continue
+        search_id = row[0]
+        still_used = conn.execute(
+            "SELECT 1 FROM route_search_circles WHERE search_id = ? LIMIT 1",
+            (search_id,),
+        ).fetchone()
+        if still_used:
+            continue
+        conn.execute("UPDATE searches SET enabled = 0 WHERE id = ?", (search_id,))
+        retired += 1
+    conn.commit()
+    return retired
+
+
 def circle_urls(conn, route_search_id):
     """The search urls this route currently covers."""
     return {

@@ -31,6 +31,11 @@ logger = logging.getLogger(__name__)
 # any listing is worth, and a routing request would only measure how much worse.
 DEFAULT_MAX_OFFROUTE_KM = 40.0
 
+# A listing sits at the centre of its town, which can be kilometres from where
+# the thing actually is, so a corridor narrower than this would throw away
+# listings on the strength of a coordinate that was never that precise.
+MIN_OFFROUTE_KM = 10.0
+
 
 def resolve_place(where, centroids=None, places=None):
     """Accepts a postal code, a "Ort, Bundesland" pair, or coordinates.
@@ -93,9 +98,11 @@ def plan_corridor(
         resolver=resolver,
     )
     if not plan.circles:
+        unresolved = ", ".join(plan.unresolved) if plan.unresolved else "none"
         raise ValueError(
             "No circle centre could be resolved to a location the platform "
-            "recognises, so this corridor cannot be searched."
+            f"recognises, so this corridor cannot be searched. Unresolved "
+            f"postal codes: {unresolved}."
         )
     return plan
 
@@ -174,7 +181,7 @@ def annotate(
     conn,
     route_search_id,
     client=None,
-    max_offroute_km=DEFAULT_MAX_OFFROUTE_KM,
+    max_offroute_km=None,
     places=None,
     limit=None,
 ):
@@ -182,10 +189,30 @@ def annotate(
 
     Returns a summary rather than the rows: the numbers are in the database, and
     what a caller wants to know is how much was done and what could not be.
+
+    The cutoff follows the corridor the buyer asked for. It used to be a flat
+    forty kilometres regardless, which meant the corridor width decided how many
+    searches to run and then had no say over what came back: a +/-15 km corridor
+    returned listings 35 km off the route. It also made redrawing pointless for
+    the listings already set aside, since the number they had been judged
+    against never moved.
+
+    A floor keeps a very narrow corridor from discarding the town-centre
+    coordinates this works from — a listing is placed at the centre of its town,
+    which can be several kilometres from wherever it actually is.
     """
     route = route_store.route(conn, route_search_id)
     if route is None:
         raise ValueError(f"Route {route_search_id} has no stored geometry.")
+
+    if max_offroute_km is None:
+        stored = route_store.get_plan(conn, route_search_id) or {}
+        half_width = stored.get("half_width_km")
+        max_offroute_km = (
+            max(float(half_width), MIN_OFFROUTE_KM)
+            if half_width
+            else DEFAULT_MAX_OFFROUTE_KM
+        )
 
     client = client or routing.OsrmClient()
     gazetteer = places or geo.places()
@@ -323,6 +350,9 @@ def replan(conn, route_search_id, radius_km, half_width_km, client=None, resolve
     )
     after = {circle.url for circle in plan.circles}
 
+    # A circle that fell out of the corridor must stop being fetched, or
+    # narrowing one reduces nothing.
+    route_store.retire_searches(conn, before - after)
     route_store.requeue(conn, route_search_id)
 
     return len(before & after), len(after - before), len(before - after), plan

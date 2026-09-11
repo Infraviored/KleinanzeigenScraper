@@ -72,6 +72,12 @@ export default function RouteResultsView({
   // overwritten before they could ever render are gone.
   const [draft, setDraft] = useState<{ radius: number; corridor: number } | null>(null);
   const [redrawing, setRedrawing] = useState(false);
+  // Kept apart from the view-wide `error`, which renders as a full-page
+  // replacement. A corridor that could not be redrawn is not a reason to take
+  // away the listings, both maps and the draft — and that card only knows one
+  // message, so the reason the endpoint took the trouble to produce was
+  // replaced by a generic "connection issue".
+  const [redrawError, setRedrawError] = useState<string | null>(null);
   const [selectedDetourMax, setSelectedDetourMax] = useState<'all' | '15' | '30' | '60'>('all');
   const [sortBy, setSortBy] = useState<'detour' | 'price'>('detour');
   const [searchQuery, setSearchQuery] = useState('');
@@ -112,6 +118,7 @@ export default function RouteResultsView({
   const redrawCorridor = useCallback(async () => {
     if (!draft || !routeData) return;
     setRedrawing(true);
+    setRedrawError(null);
     try {
       const res = await fetch(`/api/route-searches/${routeData.route.id}`, {
         method: 'PUT',
@@ -123,7 +130,7 @@ export default function RouteResultsView({
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error || 'network_error');
+        setRedrawError(data.error || t('common.connectionIssueFailed'));
         return;
       }
       // The endpoint answers with the redrawn corridor, so the results behind
@@ -131,11 +138,11 @@ export default function RouteResultsView({
       setRouteData(data);
       setDraft(null);
     } catch {
-      setError('network_error');
+      setRedrawError(t('common.connectionIssueFailed'));
     } finally {
       setRedrawing(false);
     }
-  }, [draft, routeData]);
+  }, [draft, routeData, t]);
 
   // Parse price string e.g. "70 €", "VB", "Zu verschenken" to a sortable number
   const parsePrice = (priceStr: string): number => {
@@ -322,9 +329,12 @@ export default function RouteResultsView({
             onCorridorChange={corridor => setDraft(d => (d ? { ...d, corridor } : d))}
             committing={redrawing}
             commitLabel={t('corridor.commitChange')}
-            onCancel={() => setDraft(null)}
+            onCancel={() => { setDraft(null); setRedrawError(null); }}
             onCommit={redrawCorridor}
           />
+          {redrawError && (
+            <p className="text-sm text-brand-accent font-semibold">{redrawError}</p>
+          )}
         </Card>
       )}
 

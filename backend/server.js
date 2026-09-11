@@ -567,7 +567,7 @@ app.get('/api/places/suggest', (req, res) => {
  * whole API down rather than failing one request. Having it in one place means
  * the next endpoint cannot forget it.
  */
-function runPlanner(args, req = null) {
+function runPlanner(args, res = null) {
   return new Promise((resolve, reject) => {
     const python = spawn(
       path.join(__dirname, '..', '.venv', 'bin', 'python3'),
@@ -577,8 +577,22 @@ function runPlanner(args, req = null) {
 
     // A preview the browser has already given up on still spends its OSRM and
     // Kleinanzeigen requests to the end. Dragging a slider abandons several in
-    // a row, so they are stopped when the request that wanted them goes away.
-    if (req) req.on('close', () => python.kill());
+    // a row, so they are stopped when the client that wanted them goes away.
+    //
+    // Watched on the *response*, not the request. Since Node 16 an
+    // IncomingMessage emits 'close' once its body has been read, which for a
+    // JSON POST is immediately — measured at 3 ms, killing the planner at 4 ms
+    // with a null exit code. Whether that happens depends on the client:
+    // undici triggers it, curl and a browser hold the connection open and do
+    // not. A guard that works by luck of the client is not a guard.
+    //
+    // `res` emits 'close' when the connection ends either way, so
+    // writableFinished is what tells an abandoned request from a served one.
+    if (res) {
+      res.on('close', () => {
+        if (!res.writableFinished) python.kill();
+      });
+    }
 
     let stdout = '';
     let stderr = '';
@@ -621,7 +635,7 @@ app.post('/api/route-searches/preview', async (req, res) => {
 
   let result;
   try {
-    result = await runPlanner(args, req);
+    result = await runPlanner(args, res);
   } catch (err) {
     console.error('Could not start the route planner:', err);
     return res.status(500).json({ error: 'Could not start the route planner.' });

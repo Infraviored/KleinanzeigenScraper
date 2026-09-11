@@ -469,3 +469,41 @@ def test_replanning_gives_listings_beyond_the_old_edge_another_look(conn):
     )
     assert statuses["far-one"] == "failed", "queued for another look"
     assert statuses["near-one"] == "routed", "an answered listing stays answered"
+
+
+def test_a_circle_dropped_by_a_redraw_stops_being_scraped(conn):
+    """Narrowing a corridor has to reduce the load, or it reduces nothing.
+
+    Deleting the circle row left the search behind it enabled, so the scraper
+    went on fetching it every run against a site that rate-limits after a
+    handful of requests. Disabled, not deleted: the listings it already found
+    are real and stay in the campaign.
+    """
+    route_id, wide = make_route(conn, half_width_km=25.0)
+    wide_urls = {circle.url for circle in wide.circles}
+
+    _, _, removed, narrow = route_pipeline.replan(
+        conn,
+        route_id,
+        radius_km=30.0,
+        half_width_km=5.0,
+        client=FakeOsrm(),
+        resolver=route_search.LocationResolver(fetch=suggest),
+    )
+    assert removed > 0, "the fixture must actually drop a circle"
+
+    dropped = wide_urls - {circle.url for circle in narrow.circles}
+    still_enabled = [
+        url
+        for url in dropped
+        if conn.execute(
+            "SELECT enabled FROM searches WHERE url = ?", (url,)
+        ).fetchone()[0]
+    ]
+    assert still_enabled == [], f"these would keep being fetched: {still_enabled}"
+
+    kept = {circle.url for circle in narrow.circles}
+    assert all(
+        conn.execute("SELECT enabled FROM searches WHERE url = ?", (url,)).fetchone()[0]
+        for url in kept
+    ), "a circle still in the corridor must stay enabled"

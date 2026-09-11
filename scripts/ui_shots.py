@@ -264,7 +264,10 @@ def main():
     server = None
 
     src_db = db_schema.default_path()
-    wal_file = os.path.join(ROOT, "data", "scraper.db-wal")
+    # Derived from the database actually in use, not from the default. With
+    # PRISMDEALS_DB set, the old form copied the *default* database's WAL next
+    # to the override's copy — a write-ahead log belonging to a different file.
+    wal_file = src_db + "-wal"
     if os.path.exists(wal_file):
         try:
             subprocess.run(
