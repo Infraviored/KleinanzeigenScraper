@@ -993,7 +993,7 @@ export default function App() {
           <Card className="p-6 space-y-4">
             <form onSubmit={handleLoginSubmit} className="space-y-4">
               <div className="space-y-1.5">
-                <label className="text-xs text-text-secondary font-medium block">
+                <label className="text-sm text-text-secondary font-medium block">
                   {t('auth.emailLabel')}
                 </label>
                 <Input
@@ -1006,7 +1006,7 @@ export default function App() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs text-text-secondary font-medium block">
+                <label className="text-sm text-text-secondary font-medium block">
                   {t('auth.passwordLabel')}
                 </label>
                 <Input
@@ -1019,7 +1019,7 @@ export default function App() {
               </div>
 
               {loginError && (
-                <div className="bg-status-danger/10 border border-status-danger/25 p-3 rounded-xl text-xs text-status-danger font-semibold animate-fadeIn">
+                <div className="bg-status-danger/10 border border-status-danger/25 p-3 rounded-xl text-sm text-status-danger font-semibold animate-fadeIn">
                   {loginError}
                 </div>
               )}
@@ -1046,7 +1046,7 @@ export default function App() {
         <div className="flex items-center space-x-3 cursor-pointer" onClick={() => navigate('landing', null, null)}>
           <img src={`${import.meta.env.BASE_URL}logo-icon.svg`} alt="prismdeals Icon" className="w-8 h-8 rounded-lg shadow shadow-black/30" />
           {/* eslint-disable-next-line no-restricted-syntax -- the product's name, not copy: it reads the same in every language */}
-          <span className="font-semibold text-lg tracking-wide text-white font-sans">prismdeals</span>
+          <span className="font-bold text-xl tracking-wide text-white font-sans">prismdeals</span>
         </div>
 
         {/* Hamburger Menu Toggle for Mobile */}
@@ -1064,7 +1064,7 @@ export default function App() {
           <div className="flex items-center gap-3 bg-bg-input border border-border-subtle rounded-xl py-1.5 px-3 shadow-inner">
             <div className="flex items-center space-x-1.5">
               <span className={cn("w-2 h-2 rounded-full", sessionEmail ? 'bg-status-good animate-pulse' : 'bg-status-danger')} />
-              <span className="text-xs font-medium text-text-muted">
+              <span className="text-sm font-medium text-text-muted">
                 {sessionEmail ? t('common.sessionActive', { email: sessionEmail }) : t('common.sessionUnauth')}
               </span>
             </div>
@@ -1105,7 +1105,7 @@ export default function App() {
                 variant="badge"
                 size="sm"
                 onClick={() => setIsLangDropdownOpen(!isLangDropdownOpen)}
-                className="px-3 py-1.5 text-xs flex items-center justify-center gap-1.5 border-border-subtle"
+                className="px-3 py-1.5 text-sm flex items-center justify-center gap-1.5 border-border-subtle"
               >
                 <Globe className="w-3.5 h-3.5 text-text-muted" />
                 <span>{lang.toUpperCase()}</span>
@@ -1118,7 +1118,7 @@ export default function App() {
                   <div className="absolute right-0 mt-1.5 w-24 bg-bg-surface border border-border-subtle rounded-xl shadow-xl z-20 py-1 overflow-hidden animate-fade-in">
                     <button
                       onClick={() => { toggleLanguage(); setIsLangDropdownOpen(false); }}
-                      className="w-full text-left px-3 py-1.5 text-xs text-text-secondary hover:bg-bg-surface-hover font-medium transition-colors min-h-[44px] flex items-center"
+                      className="w-full text-left px-3 py-1.5 text-sm text-text-secondary hover:bg-bg-surface-hover font-medium transition-colors min-h-[44px] flex items-center"
                     >
                       {lang === 'en' ? 'DEUTSCH' : 'ENGLISH'}
                     </button>
@@ -1144,7 +1144,7 @@ export default function App() {
               variant="danger"
               size="sm"
               onClick={handleLogout}
-              className="px-3 py-1.5 text-xs flex items-center justify-center gap-1.5 text-center"
+              className="px-3 py-1.5 text-sm flex items-center justify-center gap-1.5 text-center"
             >
               <LogOut className="w-3.5 h-3.5" />
               <span>{t('auth.logout')}</span>
@@ -1162,7 +1162,7 @@ export default function App() {
           />
           <div className="fixed top-0 right-0 bottom-0 w-72 bg-bg-surface border-l border-border-subtle p-6 z-50 flex flex-col gap-6 md:hidden animate-slide-left shadow-2xl">
             <div className="flex items-center justify-between border-b border-border-subtle pb-4">
-              <span className="font-bold text-sm text-text-primary tracking-wide">{t('common.navigation')}</span>
+              <span className="font-bold text-base text-text-primary tracking-wide">{t('common.navigation')}</span>
               <button 
                 onClick={() => setIsMobileMenuOpen(false)}
                 className="p-1 rounded-lg border border-border-subtle text-text-muted hover:text-white min-w-[44px] min-h-[44px] flex items-center justify-center"
@@ -1175,7 +1175,7 @@ export default function App() {
             <div className="flex flex-col gap-3 bg-bg-input border border-border-subtle rounded-xl p-3 shadow-inner">
               <div className="flex items-center space-x-1.5">
                 <span className={cn("w-2 h-2 rounded-full", sessionEmail ? 'bg-status-good animate-pulse' : 'bg-status-danger')} />
-                <span className="text-xs font-medium text-text-muted">
+                <span className="text-sm font-medium text-text-muted">
                   {sessionEmail ? t('common.sessionActive', { email: sessionEmail }) : t('common.sessionUnauth')}
                 </span>
               </div>
@@ -1207,7 +1207,7 @@ export default function App() {
 
             {/* Language toggle button for Mobile */}
             <div className="space-y-1">
-              <span className="text-xs font-medium text-text-secondary block">{t('common.language')}</span>
+              <span className="text-sm font-medium text-text-secondary block">{t('common.language')}</span>
               <Button
                 variant="badge"
                 size="sm"
@@ -1218,7 +1218,7 @@ export default function App() {
                   <Globe className="w-4.5 h-4.5 text-text-muted" />
                   <span>{lang === 'en' ? 'ENGLISH' : 'DEUTSCH'}</span>
                 </span>
-                <span className="text-xs text-brand-accent font-semibold">{t('common.switchTo', { lang: lang === 'en' ? 'DE' : 'EN' })}</span>
+                <span className="text-sm text-brand-accent font-semibold">{t('common.switchTo', { lang: lang === 'en' ? 'DE' : 'EN' })}</span>
               </Button>
             </div>
 
@@ -1259,8 +1259,8 @@ export default function App() {
           <div className="space-y-6 animate-fadeIn w-full">
             <div className="flex justify-between items-center pb-4 border-b border-border-subtle w-full mb-6">
               <div>
-                <h1 className="text-xl font-bold text-text-primary">{t('landing.title')}</h1>
-                <p className="text-sm text-text-secondary mt-1">{t('landing.subtitle')}</p>
+                <h1 className="text-2xl font-bold text-text-primary tracking-tight">{t('landing.title')}</h1>
+                <p className="text-base text-text-secondary mt-1">{t('landing.subtitle')}</p>
               </div>
             </div>
 
@@ -1300,7 +1300,7 @@ export default function App() {
                       </div>
                     ) : (
                       <div className="w-full aspect-[21/9] rounded-xl relative border border-border-subtle bg-bg-surface flex items-center justify-center overflow-hidden">
-                        <span className="text-xs font-medium text-text-muted">{t('landing.noListings')}</span>
+                        <span className="text-sm font-medium text-text-muted">{t('landing.noListings')}</span>
                       </div>
                     )}
 
@@ -1308,8 +1308,8 @@ export default function App() {
                       <div className="space-y-2">
                         <div className="flex justify-between items-start">
                           <div>
-                            <h3 className="text-base font-bold text-text-primary group-hover:text-brand-accent transition-colors tracking-tight line-clamp-1">{c.name}</h3>
-                            <p className="text-xs text-text-secondary mt-0.5">{t('landing.profileType')}</p>
+                            <h3 className="text-xl font-bold text-text-primary group-hover:text-brand-accent transition-colors tracking-tight line-clamp-1">{c.name}</h3>
+                            <p className="text-sm text-text-secondary mt-0.5">{t('landing.profileType')}</p>
                           </div>
 
                           <div className="flex items-center shrink-0">
@@ -1330,7 +1330,7 @@ export default function App() {
                           </div>
                         </div>
 
-                        <div className="flex flex-wrap gap-1.5 text-xs font-medium">
+                        <div className="flex flex-wrap gap-1.5 text-sm font-medium">
                           <span className="bg-bg-input text-text-secondary border border-border-subtle px-2.5 py-1 rounded-md">
                             {campaignSearches.length} {campaignSearches.length === 1 ? t('landing.target') : t('landing.targets')}
                           </span>
@@ -1345,7 +1345,7 @@ export default function App() {
                         </div>
                       </div>
 
-                      <div className="border-t border-border-subtle mt-4 pt-3 flex justify-between items-center text-sm font-medium">
+                      <div className="border-t border-border-subtle mt-4 pt-3 flex justify-between items-center text-base font-semibold">
                         <span className="text-text-secondary group-hover:text-brand-accent transition-colors">
                           {t('landing.openDashboard')}
                         </span>
@@ -1379,12 +1379,12 @@ export default function App() {
                 onClick={() => setView('create-campaign')}
                 className="bg-bg-surface/20 border-dashed border-border-subtle hover:border-brand-accent/50 hover:bg-brand-accent/[0.02] p-6 items-center justify-center space-y-4 h-full min-h-[220px]"
               >
-                <div className="w-12 h-12 rounded-2xl bg-brand-accent/10 text-brand-accent flex items-center justify-center font-bold text-xl group-hover:bg-brand-accent group-hover:text-bg-base transition-all shadow-inner">
+                <div className="w-12 h-12 rounded-2xl bg-brand-accent/10 text-brand-accent flex items-center justify-center font-bold text-3xl group-hover:bg-brand-accent group-hover:text-bg-base transition-all shadow-inner">
                   +
                 </div>
                 <div className="text-center">
-                  <h3 className="text-sm font-bold text-text-primary group-hover:text-brand-accent transition-colors">{t('landing.createCampaign')}</h3>
-                  <p className="text-xs text-text-muted mt-1 max-w-[200px]">{t('landing.createSubtitle')}</p>
+                  <h3 className="text-base font-bold text-text-primary group-hover:text-brand-accent transition-colors">{t('landing.createCampaign')}</h3>
+                  <p className="text-sm text-text-muted mt-1 max-w-[200px]">{t('landing.createSubtitle')}</p>
                 </div>
               </Card>
             </div>
@@ -1456,7 +1456,7 @@ export default function App() {
                 </Button>
                 <span className="text-text-muted hidden sm:inline">|</span>
                 <div className="flex items-center space-x-2">
-                  <h2 className="text-base font-bold text-white">
+                  <h2 className="text-xl font-bold text-white">
                     {campaigns.find(c => c.id === currentCampaignId)?.name} {t('listing.dashboardTitle')}
                   </h2>
 
@@ -1607,14 +1607,14 @@ export default function App() {
                         />
                       ) : (
                         <div className="h-full flex flex-col items-center justify-center text-center p-8 text-text-muted">
-                          <p className="text-xs font-semibold">{t('common.listingNotFound')}</p>
+                          <p className="text-sm font-semibold">{t('common.listingNotFound')}</p>
                         </div>
                       );
                     })()
                   ) : (
                     <div className="h-[350px] flex flex-col items-center justify-center text-center p-8 text-text-muted border border-dashed border-border-subtle rounded-xl bg-bg-input/20">
                       <Sparkles className="w-8 h-8 text-brand-accent/40 mb-3 animate-pulse" />
-                      <p className="text-xs font-semibold">{t('listing.selectListingPrompt') || 'Select a listing from the list to view its full AI evaluation, specs, and outreach drafts.'}</p>
+                      <p className="text-sm font-semibold">{t('listing.selectListingPrompt') || 'Select a listing from the list to view its full AI evaluation, specs, and outreach drafts.'}</p>
                     </div>
                   )}
                 </div>
@@ -1696,7 +1696,7 @@ export default function App() {
                     </div>
                   ) : (
                     <div className="flex items-center space-x-2 group">
-                      <h1 className="text-base font-bold text-text-primary truncate">
+                      <h1 className="text-xl font-bold text-text-primary truncate">
                         {campaigns.find(c => c.id === currentCampaignId)?.name} {t('common.settings')}
                       </h1>
                       <Button
@@ -1713,7 +1713,7 @@ export default function App() {
                       </Button>
                     </div>
                   )}
-                  <p className="text-xs text-text-secondary mt-0.5">{t('common.targetsAndGuidelines')}</p>
+                  <p className="text-sm text-text-secondary mt-0.5">{t('common.targetsAndGuidelines')}</p>
                 </div>
               </div>
             </div>
@@ -1727,14 +1727,13 @@ export default function App() {
                 routeMode ? 'max-w-3xl' : 'max-w-xl overflow-hidden'
               }`}>
                 <div className="space-y-1.5 text-center">
-                  <span className="mx-auto text-xs text-brand-accent font-medium block">{t('common.campaignTargetConfig')}</span>
-                  <h2 className="text-lg font-bold text-text-primary font-sans tracking-tight">{t('common.pasteSearchUrl')}</h2>
-                  <p className="text-sm text-text-secondary leading-relaxed">{t('wizard.targetsDescription')}</p>
+                  <h2 className="text-2xl font-bold text-text-primary font-sans tracking-tight">{t('common.pasteSearchUrl')}</h2>
+                  <p className="text-base text-text-secondary leading-relaxed">{t('wizard.targetsDescription')}</p>
                 </div>
 
                 <div className="space-y-4 pt-2">
                   <div className="space-y-1.5">
-                    <label className="text-xs text-text-secondary font-medium block">{t('common.pasteSearchUrl')}</label>
+                    <label className="text-sm text-text-secondary font-medium block">{t('common.pasteSearchUrl')}</label>
                     <Input
                       type="text"
                       value={newTargetUrl}
@@ -1745,7 +1744,7 @@ export default function App() {
                   </div>
 
                   {/* Where to search: around the URL's own place, or along a drive. */}
-                  <div className="flex rounded-xl bg-bg-input border border-border-subtle p-1 text-xs font-bold">
+                  <div className="flex rounded-xl bg-bg-input border border-border-subtle p-1 text-sm font-bold">
                     {[
                       { key: false, label: t('common.searchModePoint') },
                       { key: true, label: t('common.searchModeRoute') },
@@ -1768,7 +1767,7 @@ export default function App() {
 
                   {routeMode && (
                     <div className="bg-bg-surface border border-border-subtle rounded-2xl p-4 space-y-4 shadow-inner animate-fadeIn">
-                      <p className="text-xs text-text-secondary leading-relaxed">{t('common.routeExplainer')}</p>
+                      <p className="text-sm text-text-secondary leading-relaxed">{t('common.routeExplainer')}</p>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <PlaceInput
@@ -1808,7 +1807,7 @@ export default function App() {
                           commitLabel={t('corridor.commitNew')}
                         />
                       ) : (
-                        <p className="text-xs text-text-muted text-center py-2">
+                        <p className="text-sm text-text-muted text-center py-2">
                           {!newTargetUrl || !isValidKleinanzeigenUrl(newTargetUrl)
                             ? t('common.routeNeedsUrl')
                             : !routeFrom && !routeTo
@@ -1820,12 +1819,12 @@ export default function App() {
                       )}
 
                       {routeError && (
-                        <div className="text-xs bg-status-danger/10 text-status-danger px-3.5 py-2.5 rounded-xl border border-status-danger/20 font-semibold animate-fadeIn">
+                        <div className="text-sm bg-status-danger/10 text-status-danger px-3.5 py-2.5 rounded-xl border border-status-danger/20 font-semibold animate-fadeIn">
                           {routeError}
                         </div>
                       )}
                       {routeResult && (
-                        <div className="text-xs bg-status-good/10 text-status-good px-3.5 py-2.5 rounded-xl border border-status-good/20 font-semibold animate-fadeIn">
+                        <div className="text-sm bg-status-good/10 text-status-good px-3.5 py-2.5 rounded-xl border border-status-good/20 font-semibold animate-fadeIn">
                           {t('common.corridorPlanned', { count: routeResult.count, width: routeResult.width })}
                         </div>
                       )}
@@ -1835,19 +1834,19 @@ export default function App() {
                   {/* Reactive Indicators Panel */}
                   {!routeMode && newTargetUrl && (
                     <div className="bg-bg-surface border border-border-subtle rounded-2xl p-4 space-y-3 shadow-inner animate-fadeIn">
-                      <div className="text-xs font-semibold text-text-secondary border-b border-border-subtle pb-1.5 flex justify-between items-center">
+                      <div className="text-sm font-semibold text-text-secondary border-b border-border-subtle pb-1.5 flex justify-between items-center">
                         <span>{t('common.diagnostics')}</span>
                         {previewLoading && (
                           <div className="flex items-center space-x-1">
                             <span className="w-2 h-2 rounded-full bg-brand-accent animate-ping" />
-                            <span className="text-xs text-brand-accent font-mono">{t('common.processing')}</span>
+                            <span className="text-sm text-brand-accent font-mono">{t('common.processing')}</span>
                           </div>
                         )}
                       </div>
 
                       {/* URL Validity indicator */}
-                      <div className="flex items-center space-x-2 text-xs">
-                        <span className="text-xs font-mono text-text-muted shrink-0">{t('common.urlStatus')}</span>
+                      <div className="flex items-center space-x-2 text-sm">
+                        <span className="text-sm font-mono text-text-muted shrink-0">{t('common.urlStatus')}</span>
                         {isValidKleinanzeigenUrl(newTargetUrl) ? (
                           <span className="text-status-good font-semibold">{t('common.validUrl')}</span>
                         ) : (
@@ -1857,8 +1856,8 @@ export default function App() {
 
                       {/* Suggested Title */}
                       {isValidKleinanzeigenUrl(newTargetUrl) && (
-                        <div className="flex items-center space-x-2 text-xs">
-                          <span className="text-xs font-mono text-text-muted shrink-0">{t('common.suggestedName')}</span>
+                        <div className="flex items-center space-x-2 text-sm">
+                          <span className="text-sm font-mono text-text-muted shrink-0">{t('common.suggestedName')}</span>
                           <span className="text-text-primary font-medium bg-bg-input px-2 py-0.5 rounded border border-border-subtle">
                             {suggestTitleFromUrl(newTargetUrl) || t('common.extractingTitle')}
                           </span>
@@ -1867,7 +1866,7 @@ export default function App() {
 
                       {/* Diagnostic Logs */}
                       {previewLoading && (
-                        <div className="text-xs text-text-muted space-y-1 font-mono pt-1">
+                        <div className="text-sm text-text-muted space-y-1 font-mono pt-1">
                           <div className="flex items-center space-x-1.5">
                             <span className="text-brand-accent">&gt;</span>
                             <span>{t('common.diagnosticLog1')}</span>
@@ -1888,13 +1887,13 @@ export default function App() {
                       )}
 
                       {previewCount !== null && (
-                        <div className="text-xs bg-status-good/10 text-status-good px-3.5 py-2.5 rounded-xl border border-status-good/20 font-semibold animate-fadeIn">
+                        <div className="text-sm bg-status-good/10 text-status-good px-3.5 py-2.5 rounded-xl border border-status-good/20 font-semibold animate-fadeIn">
                           {t('common.foundCount', { count: previewCount })}
                         </div>
                       )}
 
                       {previewError && (
-                        <div className="text-xs bg-status-danger/10 text-status-danger px-3.5 py-2.5 rounded-xl border border-status-danger/20 font-semibold animate-fadeIn">
+                        <div className="text-sm bg-status-danger/10 text-status-danger px-3.5 py-2.5 rounded-xl border border-status-danger/20 font-semibold animate-fadeIn">
                           {previewError}
                         </div>
                       )}
@@ -1984,13 +1983,13 @@ export default function App() {
                     <span>← {t('common.back')}</span>
                   </Button>
                 </div>
-                <h2 className="text-xl font-bold text-text-primary font-sans tracking-tight">{t('wizard.createCampaignTitle')}</h2>
-                <p className="text-sm text-text-secondary leading-relaxed font-normal">{t('wizard.createCampaignDesc')}</p>
+                <h2 className="text-2xl font-bold text-text-primary font-sans tracking-tight">{t('wizard.createCampaignTitle')}</h2>
+                <p className="text-base text-text-secondary leading-relaxed font-normal">{t('wizard.createCampaignDesc')}</p>
               </div>
 
               <div className="space-y-4 pt-2">
                 <div className="space-y-1.5">
-                  <label className="text-xs text-text-secondary font-medium block">{t('wizard.campaignNameLabel')}</label>
+                  <label className="text-sm text-text-secondary font-medium block">{t('wizard.campaignNameLabel')}</label>
                   <Input
                     type="text"
                     value={newCampaignName}
@@ -2027,7 +2026,7 @@ export default function App() {
                   }}
                   className="flex-1 py-3"
                 >
-                  {t('common.save')} &rarr;
+                  {t('common.save')}
                 </Button>
               </div>
             </Card>

@@ -150,7 +150,7 @@ export default function PlaceInput({ label, placeholder, value, onChange, emptyH
 
   return (
     <div className="space-y-1.5 relative" ref={containerRef}>
-      <label htmlFor={`${listId}-input`} className="text-xs text-text-muted font-bold block">
+      <label htmlFor={`${listId}-input`} className="text-sm text-text-secondary font-semibold block">
         {label}
       </label>
       <Input
@@ -174,9 +174,9 @@ export default function PlaceInput({ label, placeholder, value, onChange, emptyH
       />
 
       {value ? (
-        <p className="text-xs text-status-good font-semibold">{value.label}</p>
+        <p className="text-sm text-status-good font-semibold">{value.label}</p>
       ) : text.trim().length >= 2 && !searching && matches.length === 0 ? (
-        <p className="text-xs text-text-muted">{emptyHint}</p>
+        <p className="text-sm text-text-muted">{emptyHint}</p>
       ) : null}
 
       {open && matches.length > 0 && (
@@ -202,10 +202,10 @@ export default function PlaceInput({ label, placeholder, value, onChange, emptyH
                 index === active ? 'bg-bg-surface-hover' : ''
               }`}
             >
-              <div className="text-sm text-text-primary font-semibold leading-snug">
+              <div className="text-base text-text-primary font-semibold leading-snug">
                 {place.qualifier ? `${place.name} ${place.qualifier}` : place.name}
               </div>
-              <div className="text-xs text-text-muted flex items-center gap-2 leading-snug">
+              <div className="text-sm text-text-muted flex items-center gap-2 leading-snug">
                 <span className="font-mono tabular-nums">{place.postal_code}</span>
                 <span aria-hidden="true">·</span>
                 <span>{place.state}</span>

@@ -104,28 +104,25 @@ export default function SettingsView({ onBack }: SettingsViewProps) {
           <span>{t('common.backToCampaigns')}</span>
         </Button>
         <span className="text-text-muted font-semibold select-none">|</span>
-        <h2 className="text-base font-bold text-text-primary tracking-tight">{t('settings.title')}</h2>
+        <h2 className="text-2xl font-bold text-text-primary tracking-tight">{t('settings.title')}</h2>
       </div>
 
       {loading ? (
         <div className="bg-bg-surface/40 backdrop-blur-xl border border-border-subtle rounded-2xl p-12 text-center shadow-lg">
           <div className="animate-spin w-8 h-8 border-3 border-brand-accent border-t-transparent rounded-full mx-auto mb-4" />
-          <p className="text-xs text-text-secondary font-medium">{t('common.loading')}</p>
+          <p className="text-sm text-text-secondary font-medium">{t('common.loading')}</p>
         </div>
       ) : (
         <form onSubmit={handleSave} className="bg-bg-surface/50 backdrop-blur-xl border border-border-subtle rounded-3xl p-8 shadow-2xl space-y-6 relative overflow-hidden">
           <div className="space-y-1">
-            <span className="text-xs text-brand-accent font-medium block mb-1">
-              {t('settings.schedulerConfig')}
-            </span>
-            <h3 className="text-lg font-bold text-text-primary font-sans tracking-tight">{t('settings.scraperRules')}</h3>
-            <p className="text-xs text-text-secondary leading-relaxed font-normal">
+            <h3 className="text-xl font-bold text-text-primary font-sans tracking-tight">{t('settings.scraperRules')}</h3>
+            <p className="text-base text-text-secondary leading-relaxed font-normal">
               {t('settings.rulesDesc')}
             </p>
           </div>
 
           {error && (
-            <div className="p-3.5 bg-status-danger/10 border border-status-danger/20 rounded-xl text-xs text-status-danger font-semibold flex items-center space-x-2 animate-fadeIn">
+            <div className="p-3.5 bg-status-danger/10 border border-status-danger/20 rounded-xl text-sm text-status-danger font-semibold flex items-center space-x-2 animate-fadeIn">
               <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
               </svg>
@@ -134,7 +131,7 @@ export default function SettingsView({ onBack }: SettingsViewProps) {
           )}
 
           {success && (
-            <div className="p-3.5 bg-status-good/10 border border-status-good/20 rounded-xl text-xs text-status-good font-semibold flex items-center space-x-2 animate-fadeIn">
+            <div className="p-3.5 bg-status-good/10 border border-status-good/20 rounded-xl text-sm text-status-good font-semibold flex items-center space-x-2 animate-fadeIn">
               <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
@@ -145,7 +142,7 @@ export default function SettingsView({ onBack }: SettingsViewProps) {
           <div className="space-y-5 pt-2">
             {/* Scraping Frequency */}
             <div className="space-y-1.5">
-              <label htmlFor="scraper-interval-input" className="text-xs text-text-secondary font-medium block">
+              <label htmlFor="scraper-interval-input" className="text-sm text-text-secondary font-medium block">
                 {t('settings.crawlFrequency')}
               </label>
               <div className="relative">
@@ -159,11 +156,11 @@ export default function SettingsView({ onBack }: SettingsViewProps) {
                   onChange={(e) => setIntervalVal(Math.max(1, parseInt(e.target.value, 10) || 1))}
                   className="font-mono pr-12"
                 />
-                <div className="absolute right-4 top-3 text-xs text-text-muted font-medium pointer-events-none select-none">
+                <div className="absolute right-4 top-3 text-sm text-text-muted font-medium pointer-events-none select-none">
                   min
                 </div>
               </div>
-              <span className="text-xs text-text-muted block leading-normal">
+              <span className="text-sm text-text-muted block leading-normal">
                 {t('settings.frequencyDesc')}
               </span>
             </div>
@@ -173,7 +170,7 @@ export default function SettingsView({ onBack }: SettingsViewProps) {
 
             {/* Delay Between Search Pages */}
             <div className="space-y-1.5">
-              <label htmlFor="scraper-delay-pages-input" className="text-xs text-text-secondary font-medium block">
+              <label htmlFor="scraper-delay-pages-input" className="text-sm text-text-secondary font-medium block">
                 {t('settings.delayBetweenPages')}
               </label>
               <div className="relative">
@@ -187,11 +184,11 @@ export default function SettingsView({ onBack }: SettingsViewProps) {
                   onChange={(e) => setDelayBetweenPages(Math.max(0, parseFloat(e.target.value) || 0))}
                   className="font-mono pr-12"
                 />
-                <div className="absolute right-4 top-3 text-xs text-text-muted font-medium pointer-events-none select-none">
+                <div className="absolute right-4 top-3 text-sm text-text-muted font-medium pointer-events-none select-none">
                   sec
                 </div>
               </div>
-              <span className="text-xs text-text-muted block leading-normal">
+              <span className="text-sm text-text-muted block leading-normal">
                 {t('settings.delayPagesDesc')}
               </span>
             </div>
@@ -201,7 +198,7 @@ export default function SettingsView({ onBack }: SettingsViewProps) {
 
             {/* Delay Between Listings Details */}
             <div className="space-y-1.5">
-              <label htmlFor="scraper-delay-listings-input" className="text-xs text-text-secondary font-medium block">
+              <label htmlFor="scraper-delay-listings-input" className="text-sm text-text-secondary font-medium block">
                 {t('settings.delayBetweenListings')}
               </label>
               <div className="relative">
@@ -215,11 +212,11 @@ export default function SettingsView({ onBack }: SettingsViewProps) {
                   onChange={(e) => setDelayBetweenListings(Math.max(0, parseFloat(e.target.value) || 0))}
                   className="font-mono pr-12"
                 />
-                <div className="absolute right-4 top-3 text-xs text-text-muted font-medium pointer-events-none select-none">
+                <div className="absolute right-4 top-3 text-sm text-text-muted font-medium pointer-events-none select-none">
                   sec
                 </div>
               </div>
-              <span className="text-xs text-text-muted block leading-normal">
+              <span className="text-sm text-text-muted block leading-normal">
                 {t('settings.delayListingsDesc')}
               </span>
             </div>
@@ -230,10 +227,10 @@ export default function SettingsView({ onBack }: SettingsViewProps) {
             {/* Toggle: Auto AI Matcher */}
             <div className="flex items-start justify-between space-x-4 py-1">
               <div className="space-y-0.5">
-                <label htmlFor="scraper-auto-ai-toggle" className="text-sm font-semibold text-text-primary block cursor-pointer">
+                <label htmlFor="scraper-auto-ai-toggle" className="text-base font-semibold text-text-primary block cursor-pointer">
                   {t('settings.autoAiLabel')}
                 </label>
-                <span className="text-xs text-text-muted block leading-normal max-w-md">
+                <span className="text-sm text-text-muted block leading-normal max-w-md">
                   {t('settings.autoAiDesc')}
                 </span>
               </div>
@@ -261,10 +258,10 @@ export default function SettingsView({ onBack }: SettingsViewProps) {
             {/* Toggle: Full Fetch on Startup */}
             <div className="flex items-start justify-between space-x-4 py-1">
               <div className="space-y-0.5">
-                <label htmlFor="scraper-startup-fetch-toggle" className="text-sm font-semibold text-text-primary block cursor-pointer">
+                <label htmlFor="scraper-startup-fetch-toggle" className="text-base font-semibold text-text-primary block cursor-pointer">
                   {t('settings.fullCrawlLabel')}
                 </label>
-                <span className="text-xs text-text-muted block leading-normal max-w-md">
+                <span className="text-sm text-text-muted block leading-normal max-w-md">
                   {t('settings.fullCrawlDesc')}
                 </span>
               </div>

@@ -73,7 +73,7 @@ export const translations = {
     },
     landing: {
       title: "Searches",
-      subtitle: "AI-driven deal intelligence",
+      subtitle: "Monitor classifieds and find deals along your routes",
       createCampaign: "New Search",
       createSubtitle: "Launch a new automated search category",
       noListings: "No listings scraped yet",
@@ -409,7 +409,7 @@ export const translations = {
     },
     landing: {
       title: "Suchen",
-      subtitle: "KI-gestützte Angebotssuche",
+      subtitle: "Kleinanzeigen überwachen und Angebote entlang Ihrer Routen finden",
       createCampaign: "Neue Suche",
       createSubtitle: "Neue automatische Suchkategorie anlegen",
       noListings: "Noch keine Anzeigen gescrapt",

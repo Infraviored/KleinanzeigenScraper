@@ -46,9 +46,9 @@ export const Button: React.FC<ButtonProps> = ({
 
   const sizes = {
     xs: 'min-h-[44px] px-3 text-xs rounded-xl gap-1',
-    sm: 'min-h-[44px] px-4 text-xs rounded-xl gap-1.5 whitespace-nowrap',
-    md: 'min-h-[44px] px-5 text-sm rounded-xl gap-1.5 whitespace-nowrap',
-    lg: 'min-h-[44px] px-6 text-base rounded-xl gap-2',
+    sm: 'min-h-[44px] px-4 text-sm rounded-xl gap-1.5 whitespace-nowrap',
+    md: 'min-h-[44px] px-5 text-base rounded-xl gap-1.5 whitespace-nowrap',
+    lg: 'min-h-[44px] px-6 text-lg rounded-xl gap-2',
   };
 
   const isBtnDisabled = disabled || loading;

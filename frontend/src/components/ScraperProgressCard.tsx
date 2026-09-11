@@ -37,18 +37,18 @@ export default function ScraperProgressCard({
         <div className="space-y-1">
           <div className="flex items-center space-x-2">
             <div className="animate-spin w-4 h-4 border-2 border-status-good border-t-transparent rounded-full" />
-            <h3 className="text-sm font-bold text-text-primary">{t('common.activeScrapingSession')}</h3>
-            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${phaseColor}`}>
+            <h3 className="text-base font-bold text-text-primary">{t('common.activeScrapingSession')}</h3>
+            <span className={`text-sm px-2.5 py-0.5 rounded-full font-medium ${phaseColor}`}>
               {phaseLabel}
             </span>
           </div>
-          <p className="text-xs text-text-secondary leading-relaxed font-medium">
+          <p className="text-sm text-text-secondary leading-relaxed font-medium">
             {scrapingStatus || "Connecting to background scraper worker..."}
           </p>
         </div>
         <div className="text-right shrink-0">
-          <span className="text-lg font-bold text-status-good font-mono tracking-tight">{pct}%</span>
-          <span className="text-xs text-text-muted block font-medium">{t('common.completedOf', { current, total })}</span>
+          <span className="text-2xl sm:text-3xl font-bold text-status-good font-mono tracking-tight">{pct}%</span>
+          <span className="text-sm text-text-muted block font-medium">{t('common.completedOf', { current, total })}</span>
         </div>
       </div>
 
@@ -64,7 +64,7 @@ export default function ScraperProgressCard({
       </div>
 
       {/* Time Remaining & Meta Details */}
-      <div className="flex items-center justify-between text-xs text-text-muted font-medium px-1 pt-0.5">
+      <div className="flex items-center justify-between text-sm text-text-muted font-medium px-1 pt-0.5">
         <div>
           {phase === 'harvesting' && remaining > 0 ? (
             <span className="flex items-center space-x-1">
@@ -81,7 +81,7 @@ export default function ScraperProgressCard({
             <span className="text-text-secondary">{t('common.connectingWorker')}</span>
           )}
         </div>
-        <div className="text-xs text-text-muted font-medium select-none">
+        <div className="text-sm text-text-muted font-medium select-none">
           {t('common.liveScraper')}
         </div>
       </div>
