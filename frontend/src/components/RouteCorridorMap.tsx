@@ -58,7 +58,7 @@ function createDotIcon(detourMin: number | null) {
   const detourLabel = detourMin !== null ? (detourMin < 1 ? 'on route' : `+${Math.round(detourMin)}m`) : '';
   const html = `
     <div class="cursor-pointer -translate-x-1/2 -translate-y-1/2 flex items-center justify-center w-8 h-8 group" title="${detourLabel}">
-      <div class="w-2 h-2 rounded-full bg-emerald-400 ring-2 ring-slate-950 shadow-md group-hover:scale-150 group-hover:bg-emerald-300 transition-all duration-150"></div>
+      <div class="w-2 h-2 rounded-full bg-status-good ring-2 ring-bg-base shadow-md group-hover:scale-150 transition-all duration-150"></div>
     </div>
   `;
   return L.divIcon({
@@ -74,8 +74,8 @@ function createSelectedPillIcon(detourMin: number | null) {
   const detourText = detourMin !== null ? (detourMin < 1 ? 'on route' : `+${Math.round(detourMin)}m`) : '•';
   const html = `
     <div class="cursor-pointer -translate-x-1/2 -translate-y-1/2 flex items-center justify-center z-50">
-      <div class="px-2.5 py-1 rounded-full text-xs font-mono shadow-2xl flex items-center gap-1.5 whitespace-nowrap bg-emerald-400 text-slate-950 ring-4 ring-emerald-400/40 font-extrabold">
-        <span class="w-1.5 h-1.5 rounded-full bg-slate-950"></span>
+      <div class="px-2.5 py-1 rounded-full text-xs font-mono shadow-2xl flex items-center gap-1.5 whitespace-nowrap bg-status-good text-bg-base ring-4 ring-status-good/40 font-extrabold">
+        <span class="w-1.5 h-1.5 rounded-full bg-bg-base"></span>
         <span>${detourText}</span>
       </div>
     </div>
@@ -93,7 +93,7 @@ function createClusterIcon(count: number) {
   const size = count >= 10 ? 'w-7 h-7 text-xs' : 'w-6 h-6 text-2xs';
   const html = `
     <div class="cursor-pointer -translate-x-1/2 -translate-y-1/2 flex items-center justify-center">
-      <div class="${size} rounded-full bg-emerald-600 text-white font-mono font-bold shadow-lg flex items-center justify-center border-2 border-slate-950 hover:bg-emerald-500 hover:scale-110 transition-transform">
+      <div class="${size} rounded-full bg-status-good text-bg-base font-mono font-bold shadow-lg flex items-center justify-center border-2 border-bg-base hover:opacity-90 hover:scale-110 transition-all">
         ${count}
       </div>
     </div>
@@ -107,10 +107,10 @@ function createClusterIcon(count: number) {
 }
 
 function createEndpointIcon(label: string, isStart: boolean) {
-  const bgClass = isStart ? 'bg-emerald-500' : 'bg-rose-500';
+  const bgClass = isStart ? 'bg-status-good' : 'bg-status-danger';
   const html = `
     <div class="cursor-pointer -translate-x-1/2 -translate-y-1/2 flex items-center justify-center">
-      <div class="w-6 h-6 rounded-full ${bgClass} text-white font-extrabold text-2xs shadow-lg flex items-center justify-center border-2 border-slate-950">
+      <div class="w-6 h-6 rounded-full ${bgClass} text-white font-extrabold text-2xs shadow-lg flex items-center justify-center border-2 border-bg-base">
         ${label}
       </div>
     </div>
@@ -329,12 +329,12 @@ export default function RouteCorridorMap({
               }}
             >
               <Popup>
-                <div className="text-xs font-sans text-slate-200 space-y-1">
-                  <div className="font-bold text-emerald-400">
+                <div className="text-xs font-sans text-text-secondary space-y-1">
+                  <div className="font-bold text-status-good">
                     {t('routeResults.legendSearchArea')} #{index + 1}
                   </div>
                   <div className="font-semibold">{circle.label}</div>
-                  <div className="text-2xs text-slate-400">
+                  <div className="text-2xs text-text-muted">
                     {t('routeResults.circlePopup', { label: circle.label, radius: circle.radius_km })}
                   </div>
                 </div>
@@ -350,8 +350,8 @@ export default function RouteCorridorMap({
             icon={createEndpointIcon('A', true)}
           >
             <Popup>
-              <div className="text-xs font-sans text-slate-200">
-                <span className="font-bold text-emerald-400 block">{t('routeResults.originPin', { place: originName || 'Start' })}</span>
+              <div className="text-xs font-sans text-text-secondary">
+                <span className="font-bold text-status-good block">{t('routeResults.originPin', { place: originName || 'Start' })}</span>
               </div>
             </Popup>
           </Marker>
@@ -363,8 +363,8 @@ export default function RouteCorridorMap({
             icon={createEndpointIcon('B', false)}
           >
             <Popup>
-              <div className="text-xs font-sans text-slate-200">
-                <span className="font-bold text-rose-400 block">{t('routeResults.destinationPin', { place: destinationName || 'Destination' })}</span>
+              <div className="text-xs font-sans text-text-secondary">
+                <span className="font-bold text-status-danger block">{t('routeResults.destinationPin', { place: destinationName || 'Destination' })}</span>
               </div>
             </Popup>
           </Marker>
@@ -381,15 +381,15 @@ export default function RouteCorridorMap({
       {/* Map Legend Overlay */}
       <div className="absolute bottom-3 left-3 z-[400] bg-bg-surface/85 backdrop-blur-md border border-border-subtle rounded-xl px-3 py-1.5 flex items-center gap-3 text-2xs font-semibold text-text-secondary pointer-events-none">
         <div className="flex items-center gap-1.5">
-          <span className="w-3 h-1 bg-emerald-500 rounded-full" />
+          <span className="w-3 h-1 bg-status-good rounded-full" />
           <span>{t('routeResults.legendRoute')}</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 rounded-full border border-dashed border-emerald-400 bg-emerald-500/10" />
+          <span className="w-2.5 h-2.5 rounded-full border border-dashed border-status-good/60 bg-status-good/10" />
           <span>{t('routeResults.legendSearchArea')}</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full bg-emerald-400 ring-1 ring-slate-950" />
+          <span className="w-2 h-2 rounded-full bg-status-good ring-1 ring-bg-base" />
           <span>{t('routeResults.legendListing')}</span>
         </div>
       </div>

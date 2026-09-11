@@ -58,6 +58,16 @@ interface RouteResultsViewProps {
   setShowLogConsole?: (val: boolean) => void;
 }
 
+function formatLocation(loc: string | null | undefined): string {
+  if (!loc) return '';
+  // Kleinanzeigen often prefixes locations with state: "Bayern - Landsberg (Lech)" -> "Landsberg (Lech)"
+  const dashIndex = loc.indexOf(' - ');
+  if (dashIndex !== -1) {
+    return loc.slice(dashIndex + 3).trim();
+  }
+  return loc;
+}
+
 export default function RouteResultsView({
   campaignId,
   campaignName,
@@ -241,24 +251,6 @@ export default function RouteResultsView({
       <Card className="p-4 sm:p-5 relative overflow-hidden bg-bg-surface border-border-subtle">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div className="space-y-1.5">
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-              <span className="text-2xs font-mono font-bold bg-brand-accent/15 text-brand-accent border border-brand-accent/30 px-2 py-0.5 rounded-full uppercase tracking-wider">
-                {t('routeResults.corridorResults')}
-              </span>
-              {route.distance_km && route.duration_min && (
-                <span className="text-2xs text-text-muted font-semibold flex items-center gap-1">
-                  <Navigation className="w-3 h-3 text-brand-accent" />
-                  {t('routeResults.routeStats', {
-                    distance: route.distance_km,
-                    duration: route.duration_min,
-                  })}
-                </span>
-              )}
-              <span className="text-2xs text-text-muted font-semibold">
-                {t('routeResults.searchCirclesCount', { count: route.circles.length })}
-              </span>
-            </div>
-
             {/* Headline Fact */}
             <h1 className="text-lg sm:text-xl font-extrabold text-text-primary tracking-tight font-heading">
               {hasListings ? (
@@ -272,9 +264,25 @@ export default function RouteResultsView({
               )}
             </h1>
 
-            <p className="text-xs text-text-muted">
-              <span className="font-semibold text-text-secondary">{campaignName}</span>: {route.origin} → {route.destination}
-            </p>
+            <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-text-muted">
+              <span>
+                <strong className="font-semibold text-text-secondary">{campaignName}</strong>: {route.origin} → {route.destination}
+              </span>
+              {route.distance_km && route.duration_min && (
+                <span className="flex items-center gap-1">
+                  <span className="text-text-muted/60">·</span>
+                  <Navigation className="w-3 h-3 text-brand-accent shrink-0 inline" />
+                  {t('routeResults.routeStats', {
+                    distance: route.distance_km,
+                    duration: route.duration_min,
+                  })}
+                </span>
+              )}
+              <span className="flex items-center gap-1">
+                <span className="text-text-muted/60">·</span>
+                {t('routeResults.searchCirclesCount', { count: route.circles.length })}
+              </span>
+            </div>
           </div>
 
           {/* Action CTAs */}
@@ -285,16 +293,16 @@ export default function RouteResultsView({
               size="sm"
               onClick={onStartScrape}
               disabled={isScraping}
-              className="py-2.5 px-3 font-bold flex items-center justify-center gap-2 min-h-[44px]"
+              className="py-2.5 px-3 font-bold flex items-center justify-center gap-1.5 min-h-[44px] whitespace-normal text-center leading-tight"
             >
               {isScraping ? (
                 <>
-                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  <RefreshCw className="w-4 h-4 animate-spin shrink-0" />
                   <span>{t('routeResults.scrapingInProgress')}</span>
                 </>
               ) : (
                 <>
-                  <Search className="w-4 h-4" />
+                  <Search className="w-4 h-4 shrink-0" />
                   <span>{t('routeResults.startScrape')}</span>
                 </>
               )}
@@ -309,9 +317,9 @@ export default function RouteResultsView({
                   corridor: routeData.route.half_width_km,
                 })
               }
-              className="py-2.5 px-3 font-bold flex items-center justify-center gap-2 min-h-[44px]"
+              className="py-2.5 px-3 font-bold flex items-center justify-center gap-1.5 min-h-[44px] whitespace-normal text-center leading-tight"
             >
-              <SlidersHorizontal className="w-4 h-4" />
+              <SlidersHorizontal className="w-4 h-4 shrink-0" />
               <span>{t('corridor.editSettings')}</span>
             </Button>
 
@@ -320,9 +328,9 @@ export default function RouteResultsView({
               variant="action-indigo"
               size="sm"
               onClick={onEvaluateWithAi}
-              className="col-span-2 sm:col-span-1 py-2.5 px-3 font-bold flex items-center justify-center gap-2 min-h-[44px]"
+              className="col-span-2 sm:col-span-1 py-2.5 px-3 font-bold flex items-center justify-center gap-1.5 min-h-[44px] whitespace-normal text-center leading-tight"
             >
-              <Sparkles className="w-4 h-4" />
+              <Sparkles className="w-4 h-4 shrink-0" />
               <span>{t('routeResults.evaluateWithAi')}</span>
             </Button>
           </div>
@@ -578,11 +586,11 @@ export default function RouteResultsView({
                             {selectedListing.price}
                           </span>
                         </div>
-                        <h4 className="text-xs font-bold text-text-primary truncate mt-0.5">
+                        <h4 className="text-xs font-bold text-text-primary line-clamp-2 mt-0.5 leading-snug">
                           {selectedListing.title}
                         </h4>
                         <p className="text-2xs text-text-muted truncate">
-                          {selectedListing.location}
+                          {formatLocation(selectedListing.location)}
                           {selectedListing.offroute_km !== null ? ` · ${selectedListing.offroute_km.toFixed(1)} km` : ''}
                         </p>
                       </div>
@@ -651,9 +659,9 @@ export default function RouteResultsView({
                             : 'bg-bg-surface border-border-subtle hover:bg-bg-surface-hover hover:border-border-brand'
                         }`}
                       >
-                        {/* 64px Thumbnail */}
+                        {/* 56px Thumbnail */}
                         {firstImg ? (
-                          <div className="w-16 h-16 rounded-xl overflow-hidden shrink-0 border border-border-subtle bg-bg-input">
+                          <div className="w-14 h-14 rounded-xl overflow-hidden shrink-0 border border-border-subtle bg-bg-input">
                             <img
                               src={firstImg}
                               alt={l.title}
@@ -662,19 +670,19 @@ export default function RouteResultsView({
                             />
                           </div>
                         ) : (
-                          <div className="w-16 h-16 rounded-xl shrink-0 border border-border-subtle bg-bg-input flex items-center justify-center text-text-muted font-mono text-2xs">
+                          <div className="w-14 h-14 rounded-xl shrink-0 border border-border-subtle bg-bg-input flex items-center justify-center text-text-muted font-mono text-2xs">
                             {t('common.noImage')}
                           </div>
                         )}
 
                         {/* Details: Title & Location */}
                         <div className="flex-1 min-w-0 flex flex-col justify-center py-0.5">
-                          <h3 className="text-sm font-semibold text-text-primary truncate group-hover:text-brand-accent transition-colors leading-snug">
+                          <h3 className="text-sm font-semibold text-text-primary line-clamp-2 group-hover:text-brand-accent transition-colors leading-snug break-words">
                             {l.title}
                           </h3>
 
                           <div className="flex items-center gap-1.5 text-2xs text-text-muted truncate mt-1">
-                            <span className="truncate">{l.location}</span>
+                            <span className="truncate">{formatLocation(l.location)}</span>
                             {l.offroute_km !== null && (
                               <span className="font-mono text-text-muted shrink-0">
                                 · {l.offroute_km.toFixed(1)} km
@@ -689,14 +697,14 @@ export default function RouteResultsView({
                         </div>
 
                         {/* Cost Column: Detour above Price */}
-                        <div className="shrink-0 flex flex-col items-end justify-center text-right pl-2 min-w-[72px]">
+                        <div className="shrink-0 flex flex-col items-end justify-center text-right pl-1 min-w-[52px]">
                           {l.detour_min !== null ? (
                             l.detour_min < 1 ? (
-                              <span className="text-sm font-bold text-brand-accent font-mono leading-none">
+                              <span className="text-xs font-bold text-brand-accent font-mono leading-none">
                                 {t('routeResults.onRouteShort')}
                               </span>
                             ) : (
-                              <span className="text-lg font-extrabold text-brand-accent font-mono tracking-tight leading-none">
+                              <span className="text-base font-extrabold text-brand-accent font-mono tracking-tight leading-none">
                                 +{Math.round(l.detour_min)}m
                               </span>
                             )
@@ -710,7 +718,7 @@ export default function RouteResultsView({
                             </span>
                           )}
 
-                          <span className="text-sm font-semibold text-text-secondary font-mono mt-1.5 leading-none">
+                          <span className="text-sm font-semibold text-text-secondary font-mono mt-1 leading-none">
                             {l.price}
                           </span>
                         </div>
